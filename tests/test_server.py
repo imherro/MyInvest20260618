@@ -8,6 +8,9 @@ class ServerPayloadTests(unittest.TestCase):
     def test_public_sources_have_four_entries(self):
         sources = server.public_sources()
         self.assertEqual(["market", "theme", "shadow", "position"], [item["id"] for item in sources])
+        self.assertEqual("https://market.okbbc.com/", sources[0]["home_url"])
+        self.assertEqual("https://market.okbbc.com/api/index", sources[0]["api_url"])
+        self.assertNotEqual(sources[0]["home_url"], sources[0]["api_url"])
 
     def test_all_sources_payload_preserves_source_order(self):
         def fake_fetch(source_id):
@@ -34,4 +37,3 @@ class ServerPayloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

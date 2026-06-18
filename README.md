@@ -7,6 +7,8 @@
 - 影子：`https://shadow.okbbc.com/api/index`
 - 操作：`https://position.okbbc.com/api/index`
 
+页面顶部的频道首页入口指向频道根地址，例如 `https://market.okbbc.com/`。后台数据刷新仍然使用对应的 `/api/index` 接口。
+
 ## 启动
 
 ```powershell
@@ -26,4 +28,3 @@ http://127.0.0.1:8888/
 ```powershell
 python -m unittest discover -s tests -q
 ```
-

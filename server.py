@@ -30,7 +30,8 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             {
                 "label": "市场",
                 "subtitle": "A股市场评分",
-                "url": "https://market.okbbc.com/api/index",
+                "home_url": "https://market.okbbc.com/",
+                "api_url": "https://market.okbbc.com/api/index",
                 "accent": "market",
             },
         ),
@@ -39,7 +40,8 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             {
                 "label": "主线",
                 "subtitle": "主题主线排名",
-                "url": "https://theme.okbbc.com/api/index",
+                "home_url": "https://theme.okbbc.com/",
+                "api_url": "https://theme.okbbc.com/api/index",
                 "accent": "theme",
             },
         ),
@@ -48,7 +50,8 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             {
                 "label": "影子",
                 "subtitle": "影子观察",
-                "url": "https://shadow.okbbc.com/api/index",
+                "home_url": "https://shadow.okbbc.com/",
+                "api_url": "https://shadow.okbbc.com/api/index",
                 "accent": "shadow",
             },
         ),
@@ -57,7 +60,8 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             {
                 "label": "操作",
                 "subtitle": "仓位与执行",
-                "url": "https://position.okbbc.com/api/index",
+                "home_url": "https://position.okbbc.com/",
+                "api_url": "https://position.okbbc.com/api/index",
                 "accent": "position",
             },
         ),
@@ -74,7 +78,8 @@ def source_config(source_id: str, source: dict[str, str]) -> dict[str, str]:
         "id": source_id,
         "label": source["label"],
         "subtitle": source["subtitle"],
-        "url": source["url"],
+        "home_url": source["home_url"],
+        "api_url": source["api_url"],
         "accent": source["accent"],
     }
 
@@ -103,7 +108,7 @@ def fetch_source(source_id: str) -> dict[str, Any]:
 
     source = SOURCES[source_id]
     request = Request(
-        source["url"],
+        source["api_url"],
         headers={
             "Accept": "application/json, text/plain;q=0.8, */*;q=0.5",
             "User-Agent": "MyInvest20260618-WebHub/1.0",
@@ -286,4 +291,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

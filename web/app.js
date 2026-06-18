@@ -160,7 +160,7 @@ function renderEntries() {
     if (!source) continue;
     const node = template.content.firstElementChild.cloneNode(true);
     node.classList.add(`accent-${source.accent}`);
-    node.dataset.source = source.id;
+    node.href = source.home_url;
     node.querySelector(".entry-label").textContent = source.label;
     node.querySelector(".entry-subtitle").textContent = source.subtitle;
     const meta = node.querySelector(".entry-meta");
@@ -283,7 +283,7 @@ function renderPanels() {
     panel.classList.add(`accent-${source.accent}`);
     panel.querySelector(".panel-kicker").textContent = source.subtitle;
     panel.querySelector("h2").textContent = source.label;
-    panel.querySelector(".source-link").href = source.url;
+    panel.querySelector(".source-link").href = source.home_url;
     panel.querySelector(".refresh-one").dataset.source = source.id;
     panel.querySelector(".panel-state").append(renderBadge(source));
     renderMetrics(panel.querySelector(".metric-grid"), source);
@@ -334,15 +334,6 @@ workspace.addEventListener("click", (event) => {
   const button = event.target.closest(".refresh-one");
   if (!button) return;
   loadOne(button.dataset.source, button);
-});
-
-entryGrid.addEventListener("click", (event) => {
-  const entry = event.target.closest(".entry-card");
-  if (!entry) return;
-  document.getElementById(entry.dataset.source)?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  });
 });
 
 loadAll();
