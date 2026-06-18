@@ -151,15 +151,20 @@ main {
 }
 
 .entry-card {
+  appearance: none;
   display: grid;
   grid-template-columns: 6px minmax(0, 1fr) auto;
   align-items: center;
   min-height: 96px;
   overflow: hidden;
+  padding: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
   text-decoration: none;
 }
 
@@ -398,4 +403,3 @@ pre {
     display: none;
   }
 }
-

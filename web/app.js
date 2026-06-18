@@ -160,7 +160,7 @@ function renderEntries() {
     if (!source) continue;
     const node = template.content.firstElementChild.cloneNode(true);
     node.classList.add(`accent-${source.accent}`);
-    node.href = `#${source.id}`;
+    node.dataset.source = source.id;
     node.querySelector(".entry-label").textContent = source.label;
     node.querySelector(".entry-subtitle").textContent = source.subtitle;
     const meta = node.querySelector(".entry-meta");
@@ -334,6 +334,15 @@ workspace.addEventListener("click", (event) => {
   const button = event.target.closest(".refresh-one");
   if (!button) return;
   loadOne(button.dataset.source, button);
+});
+
+entryGrid.addEventListener("click", (event) => {
+  const entry = event.target.closest(".entry-card");
+  if (!entry) return;
+  document.getElementById(entry.dataset.source)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 });
 
 loadAll();
