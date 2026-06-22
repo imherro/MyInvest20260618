@@ -29,6 +29,9 @@ const TABLE_COLUMNS = {
   position: ["name", "asset", "code", "action", "target", "position", "reason"],
 };
 
+const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
+const LOCAL_CACHE_TTL_MS = 10 * 60 * 1000;
+
 let state = new Map();
 
 const entryGrid = document.querySelector("#entry-grid");
@@ -310,35 +313,112 @@ function render() {
   renderPanels();
 }
 
+function sourceSnapshot(generatedAt = new Date().toISOString()) {
+  return {
+    generated_at: generatedAt,
+    stored_at: Date.now(),
+    sources: SOURCE_ORDER.map((sourceId) => state.get(sourceId)).filter(Boolean),
+  };
+}
+
+function readLocalSnapshot() {
+  try {
+    const raw = localStorage.getItem(LOCAL_CACHE_KEY);
+    if (!raw) return null;
+    const snapshot = JSON.parse(raw);
+    if (!Array.isArray(snapshot.sources) || !snapshot.stored_at) return null;
+    const ageMs = Date.now() - snapshot.stored_at;
+    if (ageMs > LOCAL_CACHE_TTL_MS) {
+      localStorage.removeItem(LOCAL_CACHE_KEY);
+      return null;
+    }
+    const remainingSeconds = Math.max(1, Math.ceil((LOCAL_CACHE_TTL_MS - ageMs) / 1000));
+    snapshot.sources = snapshot.sources.map((source) => ({
+      ...source,
+      cache: {
+        ...(source.cache || {}),
+        hit: true,
+        ttl_seconds: LOCAL_CACHE_TTL_MS / 1000,
+        ttl_remaining_seconds: remainingSeconds,
+      },
+    }));
+    return snapshot;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalSnapshot(payload) {
+  try {
+    if (!payload?.sources?.length) return;
+    localStorage.setItem(
+      LOCAL_CACHE_KEY,
+      JSON.stringify({
+        generated_at: payload.generated_at,
+        stored_at: Date.now(),
+        sources: payload.sources,
+      }),
+    );
+  } catch {
+    // Local storage is best-effort; service-side cache still works.
+  }
+}
+
+function clearLocalSnapshot() {
+  try {
+    localStorage.removeItem(LOCAL_CACHE_KEY);
+  } catch {
+    // Ignore storage restrictions.
+  }
+}
+
+function applySources(payload) {
+  for (const source of payload.sources || []) state.set(source.id, source);
+  render();
+}
+
+function hydrateFromLocalSnapshot() {
+  const snapshot = readLocalSnapshot();
+  if (!snapshot) return false;
+  applySources(snapshot);
+  globalStatus.textContent = `本地缓存 ${fmtTime(snapshot.generated_at)}`;
+  return true;
+}
+
 function sourceRequestUrl(path, forceRefresh) {
   const params = new URLSearchParams({ t: Date.now().toString() });
   if (forceRefresh) params.set("refresh", "1");
   return `${path}?${params.toString()}`;
 }
 
-async function loadAll({ forceRefresh = false } = {}) {
-  setLoading(refreshAllButton, true);
-  globalStatus.textContent = forceRefresh ? "清缓存刷新中" : "加载中";
+async function loadAll({ forceRefresh = false, quiet = false } = {}) {
+  if (forceRefresh) clearLocalSnapshot();
+  if (!quiet) {
+    setLoading(refreshAllButton, true);
+    globalStatus.textContent = forceRefresh ? "清缓存刷新中" : "加载中";
+  }
   try {
     const response = await fetch(sourceRequestUrl("/api/sources", forceRefresh), { cache: "no-store" });
     const payload = await response.json();
-    for (const source of payload.sources || []) state.set(source.id, source);
-    render();
+    applySources(payload);
+    writeLocalSnapshot(payload);
     globalStatus.textContent = `最近刷新 ${fmtTime(payload.generated_at)}`;
   } catch (error) {
-    globalStatus.textContent = `刷新失败：${error.message}`;
+    if (!quiet || !state.size) globalStatus.textContent = `刷新失败：${error.message}`;
   } finally {
-    setLoading(refreshAllButton, false);
+    if (!quiet) setLoading(refreshAllButton, false);
   }
 }
 
 async function loadOne(sourceId, button, { forceRefresh = true } = {}) {
+  if (forceRefresh) clearLocalSnapshot();
   setLoading(button, true);
   try {
     const response = await fetch(sourceRequestUrl(`/api/sources/${sourceId}`, forceRefresh), { cache: "no-store" });
     const payload = await response.json();
     if (payload.source) state.set(payload.source.id, payload.source);
     render();
+    writeLocalSnapshot(sourceSnapshot(payload.generated_at));
     globalStatus.textContent = `已刷新 ${state.get(sourceId)?.label || sourceId}`;
   } catch (error) {
     globalStatus.textContent = `刷新失败：${error.message}`;
@@ -354,4 +434,5 @@ workspace.addEventListener("click", (event) => {
   loadOne(button.dataset.source, button, { forceRefresh: true });
 });
 
-loadAll();
+const hasLocalSnapshot = hydrateFromLocalSnapshot();
+loadAll({ quiet: hasLocalSnapshot });

@@ -26,6 +26,7 @@ DEFAULT_PORT = 8888
 REQUEST_TIMEOUT_SECONDS = 12
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 CACHE_TTL_SECONDS = 10 * 60
+STATIC_CACHE_SECONDS = 60
 _SOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _SOURCE_CACHE_LOCK = threading.Lock()
 
@@ -340,7 +341,7 @@ class WebHubHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", f"private, max-age={STATIC_CACHE_SECONDS}")
         self.end_headers()
         self.wfile.write(payload)
 
