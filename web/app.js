@@ -1,4 +1,35 @@
-const SOURCE_ORDER = ["market", "theme", "shadow", "position"];
+const CHANNELS = [
+  {
+    id: "market",
+    label: "市场",
+    subtitle: "A股市场评分",
+    home_url: "https://market.okbbc.com/",
+    accent: "market",
+  },
+  {
+    id: "theme",
+    label: "主线",
+    subtitle: "主题主线排名",
+    home_url: "https://theme.okbbc.com/",
+    accent: "theme",
+  },
+  {
+    id: "shadow",
+    label: "影子",
+    subtitle: "影子观察",
+    home_url: "https://shadow.okbbc.com/",
+    accent: "shadow",
+  },
+  {
+    id: "position",
+    label: "操作",
+    subtitle: "仓位与执行",
+    home_url: "https://position.okbbc.com/",
+    accent: "position",
+  },
+];
+const SOURCE_ORDER = CHANNELS.map((source) => source.id);
+const CHANNEL_BY_ID = new Map(CHANNELS.map((source) => [source.id, source]));
 const LABELS = {
   market_regime: "市场状态",
   equity_position_range: "权益仓位区间",
@@ -155,6 +186,24 @@ function setLoading(button, loading) {
   button.disabled = loading;
 }
 
+function baseSource(sourceId) {
+  return {
+    ...CHANNEL_BY_ID.get(sourceId),
+    id: sourceId,
+    ok: null,
+    pending: true,
+    data: null,
+  };
+}
+
+function initializeShell() {
+  for (const sourceId of SOURCE_ORDER) {
+    if (!state.has(sourceId)) state.set(sourceId, baseSource(sourceId));
+  }
+  render();
+  globalStatus.textContent = "入口已就绪，数据后台更新中";
+}
+
 function renderEntries() {
   entryGrid.replaceChildren();
   const template = document.querySelector("#entry-template");
@@ -167,13 +216,30 @@ function renderEntries() {
     node.querySelector(".entry-label").textContent = source.label;
     node.querySelector(".entry-subtitle").textContent = source.subtitle;
     const meta = node.querySelector(".entry-meta");
-    meta.textContent = source.ok ? fmtTime(source.fetched_at) : `错误 ${source.status || ""}`.trim();
+    if (source.pending) {
+      meta.textContent = "入口";
+    } else {
+      meta.textContent = source.ok ? fmtTime(source.fetched_at) : `错误 ${source.status || ""}`.trim();
+    }
     entryGrid.append(node);
   }
 }
 
 function renderBadge(source) {
   const fragment = document.createDocumentFragment();
+  if (source.pending) {
+    const readyBadge = document.createElement("span");
+    readyBadge.className = "badge ok";
+    readyBadge.textContent = "入口可用";
+    fragment.append(readyBadge);
+
+    const updateBadge = document.createElement("span");
+    updateBadge.className = "badge";
+    updateBadge.textContent = "后台更新中";
+    fragment.append(updateBadge);
+    return fragment;
+  }
+
   const statusBadge = document.createElement("span");
   statusBadge.className = `badge ${source.ok ? "ok" : "bad"}`;
   statusBadge.textContent = source.ok ? "已连接" : "接口异常";
@@ -219,7 +285,15 @@ function renderBadge(source) {
 
 function renderMetrics(container, source) {
   container.replaceChildren();
-  const metrics = source.ok ? pickSummary(source) : [{ label: "错误", value: source.error || "接口请求失败" }];
+  let metrics;
+  if (source.pending) {
+    metrics = [
+      { label: "频道入口", value: "可直接打开" },
+      { label: "数据状态", value: "后台更新中" },
+    ];
+  } else {
+    metrics = source.ok ? pickSummary(source) : [{ label: "错误", value: source.error || "接口请求失败" }];
+  }
   if (!metrics.length) {
     const item = document.createElement("div");
     item.className = "metric";
@@ -244,6 +318,14 @@ function renderMetrics(container, source) {
 
 function renderTable(container, source) {
   container.replaceChildren();
+  if (source.pending) {
+    const note = document.createElement("p");
+    note.className = "empty-note";
+    note.textContent = "频道入口已显示，数据正在后台读取。";
+    container.append(note);
+    return;
+  }
+
   if (!source.ok) {
     const note = document.createElement("p");
     note.className = "empty-note";
@@ -317,7 +399,8 @@ function sourceSnapshot(generatedAt = new Date().toISOString()) {
   return {
     generated_at: generatedAt,
     stored_at: Date.now(),
-    sources: SOURCE_ORDER.map((sourceId) => state.get(sourceId)).filter(Boolean),
+    sources: SOURCE_ORDER.map((sourceId) => state.get(sourceId))
+      .filter((source) => source && !source.pending),
   };
 }
 
@@ -350,13 +433,14 @@ function readLocalSnapshot() {
 
 function writeLocalSnapshot(payload) {
   try {
-    if (!payload?.sources?.length) return;
+    const sources = (payload?.sources || []).filter((source) => !source.pending);
+    if (!sources.length) return;
     localStorage.setItem(
       LOCAL_CACHE_KEY,
       JSON.stringify({
         generated_at: payload.generated_at,
         stored_at: Date.now(),
-        sources: payload.sources,
+        sources,
       }),
     );
   } catch {
@@ -434,5 +518,6 @@ workspace.addEventListener("click", (event) => {
   loadOne(button.dataset.source, button, { forceRefresh: true });
 });
 
-const hasLocalSnapshot = hydrateFromLocalSnapshot();
-loadAll({ quiet: hasLocalSnapshot });
+initializeShell();
+hydrateFromLocalSnapshot();
+loadAll({ quiet: true });
