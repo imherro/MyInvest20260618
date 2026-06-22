@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import copy
 import json
 import mimetypes
 import os
+import threading
+import time
 from collections import OrderedDict
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -12,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -22,6 +25,9 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 REQUEST_TIMEOUT_SECONDS = 12
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+CACHE_TTL_SECONDS = 10 * 60
+_SOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_SOURCE_CACHE_LOCK = threading.Lock()
 
 SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
     [
@@ -71,6 +77,10 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def utc_iso_from_epoch(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec="seconds")
 
 
 def source_config(source_id: str, source: dict[str, str]) -> dict[str, str]:
@@ -157,13 +167,76 @@ def fetch_source(source_id: str) -> dict[str, Any]:
         }
 
 
+def clear_source_cache(source_id: str | None = None) -> None:
+    with _SOURCE_CACHE_LOCK:
+        if source_id is None:
+            _SOURCE_CACHE.clear()
+        else:
+            _SOURCE_CACHE.pop(source_id, None)
+
+
+def add_cache_metadata(
+    payload: dict[str, Any],
+    *,
+    hit: bool,
+    stored_at: float,
+    now: float,
+) -> dict[str, Any]:
+    result = copy.deepcopy(payload)
+    ttl_remaining = max(0, int(round(CACHE_TTL_SECONDS - (now - stored_at))))
+    result["cache"] = {
+        "hit": hit,
+        "ttl_seconds": CACHE_TTL_SECONDS,
+        "ttl_remaining_seconds": ttl_remaining,
+        "cached_at": utc_iso_from_epoch(stored_at),
+        "expires_at": utc_iso_from_epoch(stored_at + CACHE_TTL_SECONDS),
+    }
+    return result
+
+
+def fetch_source_cached(
+    source_id: str,
+    *,
+    force_refresh: bool = False,
+    fetcher: Callable[[str], dict[str, Any]] = fetch_source,
+    now: float | None = None,
+) -> dict[str, Any]:
+    checked_at = time.time() if now is None else now
+    if force_refresh:
+        clear_source_cache(source_id)
+    else:
+        with _SOURCE_CACHE_LOCK:
+            cached = _SOURCE_CACHE.get(source_id)
+        if cached is not None:
+            stored_at, payload = cached
+            if checked_at - stored_at < CACHE_TTL_SECONDS:
+                return add_cache_metadata(payload, hit=True, stored_at=stored_at, now=checked_at)
+
+    payload = fetcher(source_id)
+    stored_at = time.time() if now is None else now
+    with _SOURCE_CACHE_LOCK:
+        _SOURCE_CACHE[source_id] = (stored_at, copy.deepcopy(payload))
+    return add_cache_metadata(payload, hit=False, stored_at=stored_at, now=stored_at)
+
+
 def build_all_sources_payload(
     fetcher: Callable[[str], dict[str, Any]] = fetch_source,
+    *,
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
+    if force_refresh:
+        clear_source_cache()
+
     results: dict[str, dict[str, Any]] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
         future_map = {
-            executor.submit(fetcher, source_id): source_id for source_id in SOURCES
+            executor.submit(
+                fetch_source_cached,
+                source_id,
+                force_refresh=force_refresh,
+                fetcher=fetcher,
+            ): source_id
+            for source_id in SOURCES
         }
         for future in concurrent.futures.as_completed(future_map):
             source_id = future_map[future]
@@ -188,7 +261,12 @@ def build_all_sources_payload(
     }
 
 
-def build_single_source_payload(source_id: str) -> tuple[int, dict[str, Any]]:
+def build_single_source_payload(
+    source_id: str,
+    *,
+    force_refresh: bool = False,
+    fetcher: Callable[[str], dict[str, Any]] = fetch_source,
+) -> tuple[int, dict[str, Any]]:
     if source_id not in SOURCES:
         return (
             HTTPStatus.NOT_FOUND,
@@ -205,7 +283,11 @@ def build_single_source_payload(source_id: str) -> tuple[int, dict[str, Any]]:
         {
             "ok": True,
             "generated_at": utc_now_iso(),
-            "source": fetch_source(source_id),
+            "source": fetch_source_cached(
+                source_id,
+                force_refresh=force_refresh,
+                fetcher=fetcher,
+            ),
         },
     )
 
@@ -216,6 +298,8 @@ class WebHubHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
+        query = parse_qs(parsed.query)
+        force_refresh = query.get("refresh", ["0"])[0].lower() in {"1", "true", "yes"}
 
         if path == "/healthz":
             self.write_json({"ok": True, "generated_at": utc_now_iso()})
@@ -224,11 +308,14 @@ class WebHubHandler(BaseHTTPRequestHandler):
             self.write_json({"ok": True, "sources": public_sources()})
             return
         if path == "/api/sources":
-            self.write_json(build_all_sources_payload())
+            self.write_json(build_all_sources_payload(force_refresh=force_refresh))
             return
         if path.startswith("/api/sources/"):
             source_id = path.rsplit("/", 1)[-1]
-            status, payload = build_single_source_payload(source_id)
+            status, payload = build_single_source_payload(
+                source_id,
+                force_refresh=force_refresh,
+            )
             self.write_json(payload, status=status)
             return
 

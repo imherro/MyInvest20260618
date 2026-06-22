@@ -186,6 +186,18 @@ function renderBadge(source) {
   timeBadge.textContent = `刷新 ${fmtTime(source.fetched_at)}`;
   fragment.append(timeBadge);
 
+  if (source.cache) {
+    const cacheBadge = document.createElement("span");
+    cacheBadge.className = source.cache.hit ? "badge" : "badge ok";
+    if (source.cache.hit) {
+      const minutes = Math.max(1, Math.ceil(source.cache.ttl_remaining_seconds / 60));
+      cacheBadge.textContent = `缓存 ${minutes} 分`;
+    } else {
+      cacheBadge.textContent = "已更新缓存";
+    }
+    fragment.append(cacheBadge);
+  }
+
   if (source.truncated) {
     const warn = document.createElement("span");
     warn.className = "badge warn";
@@ -298,11 +310,17 @@ function render() {
   renderPanels();
 }
 
-async function loadAll() {
+function sourceRequestUrl(path, forceRefresh) {
+  const params = new URLSearchParams({ t: Date.now().toString() });
+  if (forceRefresh) params.set("refresh", "1");
+  return `${path}?${params.toString()}`;
+}
+
+async function loadAll({ forceRefresh = false } = {}) {
   setLoading(refreshAllButton, true);
-  globalStatus.textContent = "刷新中";
+  globalStatus.textContent = forceRefresh ? "清缓存刷新中" : "加载中";
   try {
-    const response = await fetch(`/api/sources?t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(sourceRequestUrl("/api/sources", forceRefresh), { cache: "no-store" });
     const payload = await response.json();
     for (const source of payload.sources || []) state.set(source.id, source);
     render();
@@ -314,10 +332,10 @@ async function loadAll() {
   }
 }
 
-async function loadOne(sourceId, button) {
+async function loadOne(sourceId, button, { forceRefresh = true } = {}) {
   setLoading(button, true);
   try {
-    const response = await fetch(`/api/sources/${sourceId}?t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(sourceRequestUrl(`/api/sources/${sourceId}`, forceRefresh), { cache: "no-store" });
     const payload = await response.json();
     if (payload.source) state.set(payload.source.id, payload.source);
     render();
@@ -329,11 +347,11 @@ async function loadOne(sourceId, button) {
   }
 }
 
-refreshAllButton.addEventListener("click", loadAll);
+refreshAllButton.addEventListener("click", () => loadAll({ forceRefresh: true }));
 workspace.addEventListener("click", (event) => {
   const button = event.target.closest(".refresh-one");
   if (!button) return;
-  loadOne(button.dataset.source, button);
+  loadOne(button.dataset.source, button, { forceRefresh: true });
 });
 
 loadAll();

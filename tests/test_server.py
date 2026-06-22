@@ -5,6 +5,9 @@ import server
 
 
 class ServerPayloadTests(unittest.TestCase):
+    def setUp(self):
+        server.clear_source_cache()
+
     def test_public_sources_have_four_entries(self):
         sources = server.public_sources()
         self.assertEqual(["market", "theme", "shadow", "position"], [item["id"] for item in sources])
@@ -20,6 +23,40 @@ class ServerPayloadTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual(["market", "theme", "shadow", "position"], [item["id"] for item in payload["sources"]])
+
+    def test_cached_source_reuses_value_inside_ttl(self):
+        calls = []
+
+        def fake_fetch(source_id):
+            calls.append(source_id)
+            return {"id": source_id, "ok": True, "data": {"call": len(calls)}}
+
+        first = server.fetch_source_cached("market", fetcher=fake_fetch, now=1000)
+        second = server.fetch_source_cached("market", fetcher=fake_fetch, now=1005)
+
+        self.assertEqual(1, len(calls))
+        self.assertFalse(first["cache"]["hit"])
+        self.assertTrue(second["cache"]["hit"])
+        self.assertEqual({"call": 1}, second["data"])
+
+    def test_force_refresh_replaces_cached_source(self):
+        calls = []
+
+        def fake_fetch(source_id):
+            calls.append(source_id)
+            return {"id": source_id, "ok": True, "data": {"call": len(calls)}}
+
+        server.fetch_source_cached("market", fetcher=fake_fetch, now=1000)
+        refreshed = server.fetch_source_cached(
+            "market",
+            force_refresh=True,
+            fetcher=fake_fetch,
+            now=1005,
+        )
+
+        self.assertEqual(2, len(calls))
+        self.assertFalse(refreshed["cache"]["hit"])
+        self.assertEqual({"call": 2}, refreshed["data"])
 
     def test_unknown_source_payload_is_404(self):
         status, payload = server.build_single_source_payload("missing")
