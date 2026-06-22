@@ -13,7 +13,7 @@
         <h1>信息总览</h1>
       </div>
       <div class="topbar-actions">
-        <span class="sync-time" id="global-status">等待刷新</span>
+        <span class="sync-time" id="global-status">入口已就绪</span>
         <button class="icon-button primary" id="refresh-all" type="button" aria-label="全部刷新" title="全部刷新">
           <svg aria-hidden="true" viewBox="0 0 24 24">
             <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16" />
@@ -26,8 +26,134 @@
     </header>
 
     <main>
-      <nav class="entry-grid" id="entry-grid" aria-label="主页入口"></nav>
-      <section class="workspace" id="workspace" aria-live="polite"></section>
+      <nav class="entry-grid" id="entry-grid" aria-label="主页入口">
+        <a class="entry-card accent-market" href="https://market.okbbc.com/">
+          <span class="entry-accent"></span>
+          <span class="entry-main">
+            <span class="entry-label">市场</span>
+            <span class="entry-subtitle">A股市场评分</span>
+          </span>
+          <span class="entry-meta">入口</span>
+        </a>
+        <a class="entry-card accent-theme" href="https://theme.okbbc.com/">
+          <span class="entry-accent"></span>
+          <span class="entry-main">
+            <span class="entry-label">主线</span>
+            <span class="entry-subtitle">主题主线排名</span>
+          </span>
+          <span class="entry-meta">入口</span>
+        </a>
+        <a class="entry-card accent-shadow" href="https://shadow.okbbc.com/">
+          <span class="entry-accent"></span>
+          <span class="entry-main">
+            <span class="entry-label">影子</span>
+            <span class="entry-subtitle">影子观察</span>
+          </span>
+          <span class="entry-meta">入口</span>
+        </a>
+        <a class="entry-card accent-position" href="https://position.okbbc.com/">
+          <span class="entry-accent"></span>
+          <span class="entry-main">
+            <span class="entry-label">操作</span>
+            <span class="entry-subtitle">仓位与执行</span>
+          </span>
+          <span class="entry-meta">入口</span>
+        </a>
+      </nav>
+      <section class="workspace" id="workspace" aria-live="polite">
+        <article class="data-panel accent-market" id="market">
+          <header class="panel-head">
+            <div>
+              <p class="panel-kicker">A股市场评分</p>
+              <h2>市场</h2>
+            </div>
+            <div class="panel-actions">
+              <a class="icon-button ghost source-link" href="https://market.okbbc.com/" aria-label="打开频道首页" title="打开频道首页">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14 21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </a>
+            </div>
+          </header>
+          <div class="panel-state"><span class="badge ok">入口可用</span><span class="badge">后台更新中</span></div>
+          <div class="metric-grid">
+            <div class="metric"><p class="metric-label">频道入口</p><p class="metric-value">可直接打开</p></div>
+            <div class="metric"><p class="metric-label">数据状态</p><p class="metric-value">后台更新中</p></div>
+          </div>
+          <div class="table-wrap"><p class="empty-note">频道入口已显示，数据正在后台读取。</p></div>
+        </article>
+        <article class="data-panel accent-theme" id="theme">
+          <header class="panel-head">
+            <div>
+              <p class="panel-kicker">主题主线排名</p>
+              <h2>主线</h2>
+            </div>
+            <div class="panel-actions">
+              <a class="icon-button ghost source-link" href="https://theme.okbbc.com/" aria-label="打开频道首页" title="打开频道首页">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14 21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </a>
+            </div>
+          </header>
+          <div class="panel-state"><span class="badge ok">入口可用</span><span class="badge">后台更新中</span></div>
+          <div class="metric-grid">
+            <div class="metric"><p class="metric-label">频道入口</p><p class="metric-value">可直接打开</p></div>
+            <div class="metric"><p class="metric-label">数据状态</p><p class="metric-value">后台更新中</p></div>
+          </div>
+          <div class="table-wrap"><p class="empty-note">频道入口已显示，数据正在后台读取。</p></div>
+        </article>
+        <article class="data-panel accent-shadow" id="shadow">
+          <header class="panel-head">
+            <div>
+              <p class="panel-kicker">影子观察</p>
+              <h2>影子</h2>
+            </div>
+            <div class="panel-actions">
+              <a class="icon-button ghost source-link" href="https://shadow.okbbc.com/" aria-label="打开频道首页" title="打开频道首页">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14 21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </a>
+            </div>
+          </header>
+          <div class="panel-state"><span class="badge ok">入口可用</span><span class="badge">后台更新中</span></div>
+          <div class="metric-grid">
+            <div class="metric"><p class="metric-label">频道入口</p><p class="metric-value">可直接打开</p></div>
+            <div class="metric"><p class="metric-label">数据状态</p><p class="metric-value">后台更新中</p></div>
+          </div>
+          <div class="table-wrap"><p class="empty-note">频道入口已显示，数据正在后台读取。</p></div>
+        </article>
+        <article class="data-panel accent-position" id="position">
+          <header class="panel-head">
+            <div>
+              <p class="panel-kicker">仓位与执行</p>
+              <h2>操作</h2>
+            </div>
+            <div class="panel-actions">
+              <a class="icon-button ghost source-link" href="https://position.okbbc.com/" aria-label="打开频道首页" title="打开频道首页">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M15 3h6v6" />
+                  <path d="M10 14 21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </a>
+            </div>
+          </header>
+          <div class="panel-state"><span class="badge ok">入口可用</span><span class="badge">后台更新中</span></div>
+          <div class="metric-grid">
+            <div class="metric"><p class="metric-label">频道入口</p><p class="metric-value">可直接打开</p></div>
+            <div class="metric"><p class="metric-label">数据状态</p><p class="metric-value">后台更新中</p></div>
+          </div>
+          <div class="table-wrap"><p class="empty-note">频道入口已显示，数据正在后台读取。</p></div>
+        </article>
+      </section>
     </main>
 
     <template id="entry-template">
@@ -76,6 +202,6 @@
       </article>
     </template>
 
-    <script src="/app.js?v=20260622-instant-shell" defer></script>
+    <script src="/app.js?v=20260622-html-shell" defer></script>
   </body>
 </html>
