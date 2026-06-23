@@ -25,12 +25,21 @@ WEB_ROOT = ROOT / "web"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
+SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
+SHANGHAI_REALTIME_QUOTE_URL = (
+    "https://push2.eastmoney.com/api/qt/stock/get"
+    "?secid=1.000001&fields=f43,f57,f58,f60,f169,f170,f86"
+)
 REQUEST_TIMEOUT_SECONDS = 12
+QUOTE_TIMEOUT_SECONDS = 4
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 CACHE_TTL_SECONDS = 10 * 60
+QUOTE_CACHE_SECONDS = 15
 STATIC_CACHE_SECONDS = 60
 _SOURCE_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _SOURCE_CACHE_LOCK = threading.Lock()
+_QUOTE_CACHE: tuple[float, dict[str, Any]] | None = None
+_QUOTE_CACHE_LOCK = threading.Lock()
 
 SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
     [
@@ -204,6 +213,81 @@ def fetch_source(source_id: str) -> dict[str, Any]:
         }
 
 
+def format_number(value: Any, digits: int = 2) -> str:
+    return f"{value:.{digits}f}" if isinstance(value, (int, float)) else "--"
+
+
+def format_signed_number(value: Any, digits: int = 2) -> str:
+    return f"{value:+.{digits}f}" if isinstance(value, (int, float)) else "--"
+
+
+def format_pct(value: Any, digits: int = 2) -> str:
+    return f"{value:.{digits}f}%" if isinstance(value, (int, float)) else "--"
+
+
+def format_signed_pct(value: Any, digits: int = 2) -> str:
+    return f"{value:+.{digits}f}%" if isinstance(value, (int, float)) else "--"
+
+
+def fetch_shanghai_realtime_quote(now: float | None = None) -> dict[str, Any] | None:
+    global _QUOTE_CACHE
+
+    checked_at = time.time() if now is None else now
+    with _QUOTE_CACHE_LOCK:
+        cached = _QUOTE_CACHE
+    if cached is not None:
+        stored_at, payload = cached
+        if checked_at - stored_at < QUOTE_CACHE_SECONDS:
+            return copy.deepcopy(payload)
+
+    request = Request(
+        SHANGHAI_REALTIME_QUOTE_URL,
+        headers={
+            "Accept": "application/json, text/plain;q=0.8, */*;q=0.5",
+            "Referer": "https://quote.eastmoney.com/",
+            "User-Agent": "MyInvest20260618-WebHub/1.0",
+        },
+    )
+    try:
+        with urlopen(request, timeout=QUOTE_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read(256 * 1024).decode("utf-8", errors="replace"))
+    except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError):
+        return None
+
+    data = payload.get("data") or {}
+    price = data.get("f43")
+    previous_close = data.get("f60")
+    change = data.get("f169")
+    change_pct = data.get("f170")
+    timestamp = data.get("f86")
+    if not isinstance(price, (int, float)):
+        return None
+
+    quote_time = None
+    if isinstance(timestamp, (int, float)):
+        quote_time = datetime.fromtimestamp(timestamp, ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds")
+
+    result = {
+        "name": data.get("f58") or "上证指数",
+        "code": "000001.SH",
+        "value": price / 100,
+        "display": format_number(price / 100),
+        "change": change / 100 if isinstance(change, (int, float)) else None,
+        "change_display": format_signed_number(change / 100 if isinstance(change, (int, float)) else None),
+        "change_pct": change_pct / 100 if isinstance(change_pct, (int, float)) else None,
+        "change_pct_display": format_signed_pct(change_pct / 100 if isinstance(change_pct, (int, float)) else None),
+        "previous_close": previous_close / 100 if isinstance(previous_close, (int, float)) else None,
+        "as_of": quote_time,
+        "source": "Eastmoney.push2",
+        "link": SHANGHAI_INDEX_LINK,
+        "quote_type": "realtime",
+        "available": True,
+    }
+    with _QUOTE_CACHE_LOCK:
+        _QUOTE_CACHE = (time.time() if now is None else now, copy.deepcopy(result))
+    return result
+
+
 def extract_shanghai_index(market_source: dict[str, Any]) -> dict[str, Any]:
     data = market_source.get("data") or {}
     summary = data.get("summary") or {}
@@ -216,9 +300,15 @@ def extract_shanghai_index(market_source: dict[str, Any]) -> dict[str, Any]:
         "name": "上证指数",
         "code": "000001.SH",
         "value": value,
-        "display": f"{value:.2f}" if isinstance(value, (int, float)) else "--",
+        "display": format_number(value),
+        "change": None,
+        "change_display": "--",
+        "change_pct": None,
+        "change_pct_display": "--",
         "as_of": summary.get("basis_trade_date") or data_quality.get("generated_at"),
         "source": SOURCES["market"]["api_url"],
+        "link": SHANGHAI_INDEX_LINK,
+        "quote_type": "previous_close",
         "available": value is not None,
     }
 
@@ -350,14 +440,21 @@ def build_single_source_payload(
 
 def build_footer_payload(
     fetcher: Callable[[str], dict[str, Any]] = fetch_source,
+    quote_fetcher: Callable[[], dict[str, Any] | None] = fetch_shanghai_realtime_quote,
 ) -> dict[str, Any]:
     generated_at = china_now_iso()
-    market_source = fetch_source_cached("market", fetcher=fetcher)
+    try:
+        market_index = quote_fetcher()
+    except Exception:
+        market_index = None
+    if market_index is None:
+        market_source = fetch_source_cached("market", fetcher=fetcher)
+        market_index = extract_shanghai_index(market_source)
     return {
         "ok": True,
         "generated_at": generated_at,
         "timezone": "Asia/Shanghai",
-        "market_index": extract_shanghai_index(market_source),
+        "market_index": market_index,
         "links": footer_links(),
     }
 

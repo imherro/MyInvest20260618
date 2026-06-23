@@ -77,6 +77,16 @@
       .mi-footer__index {
         color: #166f7a;
         font-weight: 700;
+        text-decoration: none;
+      }
+      .mi-footer__index:hover {
+        text-decoration: underline;
+      }
+      .mi-footer__index--up {
+        color: #b42318;
+      }
+      .mi-footer__index--down {
+        color: #1d7f4d;
       }
       .mi-footer__link {
         color: #17201b;
@@ -144,8 +154,11 @@
   function indexText(payload) {
     const index = payload?.market_index;
     if (!index?.available) return "上证指数 --";
+    const change = index.change_display && index.change_pct_display
+      ? ` ${index.change_display} (${index.change_pct_display})`
+      : "";
     const suffix = index.as_of ? ` · ${index.as_of}` : "";
-    return `${index.name || "上证指数"} ${index.display || "--"}${suffix}`;
+    return `${index.name || "上证指数"} ${index.display || "--"}${change}${suffix}`;
   }
 
   function render(target, payload) {
@@ -171,8 +184,13 @@
     time.setAttribute("data-mi-footer-time", "");
     time.textContent = formatTime(payload?.generated_at);
 
-    const index = document.createElement("span");
+    const index = document.createElement(payload?.market_index?.link ? "a" : "span");
     index.className = "mi-footer__index";
+    if (typeof payload?.market_index?.change === "number") {
+      if (payload.market_index.change > 0) index.classList.add("mi-footer__index--up");
+      if (payload.market_index.change < 0) index.classList.add("mi-footer__index--down");
+    }
+    if (payload?.market_index?.link) index.href = payload.market_index.link;
     index.textContent = indexText(payload);
 
     meta.append(brand, time, index);

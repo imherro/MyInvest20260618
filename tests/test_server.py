@@ -33,7 +33,36 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("https://invest.okbbc.com/", links[0]["url"])
         self.assertEqual("https://leader.okbbc.com/", links[-1]["url"])
 
-    def test_footer_payload_extracts_shanghai_index(self):
+    def test_footer_payload_prefers_realtime_shanghai_index(self):
+        def fake_quote():
+            return {
+                "name": "上证指数",
+                "code": "000001.SH",
+                "value": 4131.52,
+                "display": "4131.52",
+                "change": -31.58,
+                "change_display": "-31.58",
+                "change_pct": -0.76,
+                "change_pct_display": "-0.76%",
+                "as_of": "2026-06-23T13:20:48+08:00",
+                "link": "https://xueqiu.com/S/SH000001",
+                "quote_type": "realtime",
+                "available": True,
+            }
+
+        payload = server.build_footer_payload(
+            fetcher=lambda source_id: self.fail("market fallback should not be used"),
+            quote_fetcher=fake_quote,
+        )
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("realtime", payload["market_index"]["quote_type"])
+        self.assertEqual("4131.52", payload["market_index"]["display"])
+        self.assertEqual("-31.58", payload["market_index"]["change_display"])
+        self.assertEqual("-0.76%", payload["market_index"]["change_pct_display"])
+        self.assertEqual("https://xueqiu.com/S/SH000001", payload["market_index"]["link"])
+
+    def test_footer_payload_falls_back_to_market_close(self):
         def fake_fetch(source_id):
             self.assertEqual("market", source_id)
             return {
@@ -57,12 +86,15 @@ class ServerPayloadTests(unittest.TestCase):
                 },
             }
 
-        payload = server.build_footer_payload(fake_fetch)
+        payload = server.build_footer_payload(fake_fetch, quote_fetcher=lambda: None)
 
         self.assertTrue(payload["ok"])
         self.assertEqual("上证指数", payload["market_index"]["name"])
         self.assertEqual("4163.10", payload["market_index"]["display"])
+        self.assertEqual("--", payload["market_index"]["change_pct_display"])
         self.assertEqual("2026-06-22", payload["market_index"]["as_of"])
+        self.assertEqual("previous_close", payload["market_index"]["quote_type"])
+        self.assertEqual("https://xueqiu.com/S/SH000001", payload["market_index"]["link"])
         self.assertEqual("invest", payload["links"][0]["id"])
 
     def test_cached_source_reuses_value_inside_ttl(self):
