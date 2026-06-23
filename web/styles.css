@@ -297,6 +297,7 @@ main {
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: 13px;
 }
 
@@ -314,7 +315,8 @@ th {
 }
 
 td {
-  min-width: 88px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .empty-note {

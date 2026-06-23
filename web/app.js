@@ -51,14 +51,24 @@ const LABELS = {
   theme_count: "主线数量",
   up_ratio: "上涨占比",
   report_id: "报告编号",
+  code: "代码",
+  name: "名称",
+  symbol: "标的",
   page: "页面",
   title: "标题",
   recommendation: "建议",
   action: "动作",
   position: "仓位",
   target: "目标",
+  target_delta: "调整%",
+  target_weight_ratio: "目标%",
+  previous_weight_ratio: "前次%",
+  drift_ratio: "变化%",
+  sleeve: "分组",
+  priority: "优先级",
   status: "状态",
   item_count: "数量",
+  tracking_result: "评级",
   deep_rating: "深研评级",
   deep_label: "深研标签",
   deep_score: "深研分",
@@ -72,18 +82,15 @@ const LABELS = {
 const TABLE_COLUMNS = {
   market: ["name", "label", "metric", "score", "value", "status"],
   theme: ["theme", "top_stage", "top_score", "sw_score", "ths_score", "etf_score", "limit_count"],
-  shadow: ["name", "theme", "subject", "score", "status", "signal", "reason"],
-  position: ["name", "asset", "code", "action", "target", "position", "reason"],
-  leader: [
-    "name",
-    "code",
-    "theme",
-    "deep_rating",
-    "deep_label",
-    "deep_score",
-    "candidate_leader_tier",
-    "candidate_evidence_score",
-  ],
+  shadow: ["code", "name", "target_weight_ratio", "drift_ratio", "pct_chg"],
+  position: ["symbol", "action", "target_delta", "priority", "confidence"],
+  leader: ["name", "code", "theme", "tracking_result", "deep_score"],
+};
+
+const TABLE_COLUMN_LIMITS = {
+  shadow: 5,
+  position: 5,
+  leader: 5,
 };
 
 const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
@@ -167,6 +174,15 @@ function leaderKeyResultTitle(data) {
   return keyResultSection?.title || "A可跟踪龙头";
 }
 
+function shadowAllocationItems(data) {
+  const allocations = data?.allocations;
+  return Array.isArray(allocations) ? allocations : [];
+}
+
+function leaderTrackingResult(item) {
+  return [item.deep_rating, item.deep_label].filter(Boolean).join(" ");
+}
+
 function pickSummary(source) {
   const data = source.data || {};
   if (source.id === "market") {
@@ -212,18 +228,25 @@ function pickSummary(source) {
 }
 
 function pickRows(source) {
+  if (source.id === "shadow") {
+    return shadowAllocationItems(source.data)
+      .map((item) => ({
+        code: item.display_code || item.code,
+        name: item.name,
+        target_weight_ratio: item.target_weight_ratio,
+        drift_ratio: item.drift_ratio,
+        pct_chg: item.pct_chg,
+      }))
+      .slice(0, 8);
+  }
   if (source.id === "leader") {
     return leaderKeyResultItems(source.data)
       .map((item) => ({
         name: item.name,
         code: item.code,
         theme: item.theme,
-        deep_rating: item.deep_rating,
-        deep_label: item.deep_label,
+        tracking_result: leaderTrackingResult(item),
         deep_score: item.deep_score,
-        candidate_leader_tier: item.candidate_leader_tier,
-        candidate_evidence_score: item.candidate_evidence_score,
-        pct_chg: item.market?.pct_chg,
       }))
       .slice(0, 8);
   }
@@ -235,8 +258,8 @@ function pickRows(source) {
 function pickColumns(sourceId, rows) {
   const preferred = TABLE_COLUMNS[sourceId] || [];
   const available = new Set(rows.flatMap((row) => Object.keys(row)));
-  const columns = preferred.filter((column) => available.has(column));
-  const maxColumns = sourceId === "leader" ? 8 : 6;
+  const maxColumns = TABLE_COLUMN_LIMITS[sourceId] || 6;
+  const columns = preferred.filter((column) => available.has(column)).slice(0, maxColumns);
   for (const row of rows) {
     for (const key of Object.keys(row)) {
       if (columns.length >= maxColumns) return columns;
