@@ -58,6 +58,15 @@ const LABELS = {
   position: "仓位",
   target: "目标",
   status: "状态",
+  item_count: "数量",
+  deep_rating: "深研评级",
+  deep_label: "深研标签",
+  deep_score: "深研分",
+  candidate_leader_tier: "龙头层级",
+  candidate_leader_claim: "龙头认定",
+  candidate_evidence_score: "证据分",
+  shadow_observation_eligible: "影子观察",
+  pct_chg: "涨跌幅",
 };
 
 const TABLE_COLUMNS = {
@@ -65,7 +74,16 @@ const TABLE_COLUMNS = {
   theme: ["theme", "top_stage", "top_score", "sw_score", "ths_score", "etf_score", "limit_count"],
   shadow: ["name", "theme", "subject", "score", "status", "signal", "reason"],
   position: ["name", "asset", "code", "action", "target", "position", "reason"],
-  leader: ["name", "stock_name", "code", "theme", "score", "status", "reason"],
+  leader: [
+    "name",
+    "code",
+    "theme",
+    "deep_rating",
+    "deep_label",
+    "deep_score",
+    "candidate_leader_tier",
+    "candidate_evidence_score",
+  ],
 };
 
 const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
@@ -137,6 +155,18 @@ function findFirstArray(value) {
   return null;
 }
 
+function leaderKeyResultItems(data) {
+  const items = data?.key_results?.primary_output?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function leaderKeyResultTitle(data) {
+  const sections = data?.page?.sections;
+  if (!Array.isArray(sections)) return "A可跟踪龙头";
+  const keyResultSection = sections.find((section) => section?.id === "key-results");
+  return keyResultSection?.title || "A可跟踪龙头";
+}
+
 function pickSummary(source) {
   const data = source.data || {};
   if (source.id === "market") {
@@ -158,6 +188,17 @@ function pickSummary(source) {
       "basis_date",
     ]);
   }
+  if (source.id === "leader") {
+    return compactPrimitiveEntries(
+      {
+        title: leaderKeyResultTitle(data),
+        item_count: leaderKeyResultItems(data).length,
+        report_id: data.report?.report_id,
+        generated_at: data.report?.generated_at,
+      },
+      ["title", "item_count", "report_id", "generated_at"],
+    );
+  }
   const candidate = data.latest_report || data.summary || data.page || data;
   return compactPrimitiveEntries(candidate, [
     "title",
@@ -171,6 +212,21 @@ function pickSummary(source) {
 }
 
 function pickRows(source) {
+  if (source.id === "leader") {
+    return leaderKeyResultItems(source.data)
+      .map((item) => ({
+        name: item.name,
+        code: item.code,
+        theme: item.theme,
+        deep_rating: item.deep_rating,
+        deep_label: item.deep_label,
+        deep_score: item.deep_score,
+        candidate_leader_tier: item.candidate_leader_tier,
+        candidate_evidence_score: item.candidate_evidence_score,
+        pct_chg: item.market?.pct_chg,
+      }))
+      .slice(0, 8);
+  }
   const rows = findFirstArray(source.data);
   if (!rows) return [];
   return rows.filter((row) => row && typeof row === "object" && !Array.isArray(row)).slice(0, 8);
@@ -180,13 +236,14 @@ function pickColumns(sourceId, rows) {
   const preferred = TABLE_COLUMNS[sourceId] || [];
   const available = new Set(rows.flatMap((row) => Object.keys(row)));
   const columns = preferred.filter((column) => available.has(column));
+  const maxColumns = sourceId === "leader" ? 8 : 6;
   for (const row of rows) {
     for (const key of Object.keys(row)) {
-      if (columns.length >= 6) return columns;
+      if (columns.length >= maxColumns) return columns;
       if (!columns.includes(key) && isPrimitive(row[key])) columns.push(key);
     }
   }
-  return columns.slice(0, 6);
+  return columns.slice(0, maxColumns);
 }
 
 function setLoading(button, loading) {
