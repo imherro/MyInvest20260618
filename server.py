@@ -74,16 +74,6 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             },
         ),
         (
-            "position",
-            {
-                "label": "操作",
-                "subtitle": "仓位与执行",
-                "home_url": "https://position.okbbc.com/",
-                "api_url": "https://position.okbbc.com/api/index",
-                "accent": "position",
-            },
-        ),
-        (
             "leader",
             {
                 "label": "龙头",
@@ -91,6 +81,16 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
                 "home_url": "https://leader.okbbc.com/",
                 "api_url": "https://leader.okbbc.com/api/index",
                 "accent": "leader",
+            },
+        ),
+        (
+            "position",
+            {
+                "label": "操作",
+                "subtitle": "仓位与执行",
+                "home_url": "https://position.okbbc.com/",
+                "api_url": "https://position.okbbc.com/api/index",
+                "accent": "position",
             },
         ),
     ]

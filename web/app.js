@@ -21,18 +21,18 @@ const CHANNELS = [
     accent: "shadow",
   },
   {
-    id: "position",
-    label: "操作",
-    subtitle: "仓位与执行",
-    home_url: "https://position.okbbc.com/",
-    accent: "position",
-  },
-  {
     id: "leader",
     label: "龙头",
     subtitle: "龙头研究",
     home_url: "https://leader.okbbc.com/",
     accent: "leader",
+  },
+  {
+    id: "position",
+    label: "操作",
+    subtitle: "仓位与执行",
+    home_url: "https://position.okbbc.com/",
+    accent: "position",
   },
 ];
 const SOURCE_ORDER = CHANNELS.map((source) => source.id);

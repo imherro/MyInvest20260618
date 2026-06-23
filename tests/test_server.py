@@ -10,12 +10,12 @@ class ServerPayloadTests(unittest.TestCase):
 
     def test_public_sources_have_expected_entries(self):
         sources = server.public_sources()
-        self.assertEqual(["market", "theme", "shadow", "position", "leader"], [item["id"] for item in sources])
+        self.assertEqual(["market", "theme", "shadow", "leader", "position"], [item["id"] for item in sources])
         self.assertEqual("https://market.okbbc.com/", sources[0]["home_url"])
         self.assertEqual("https://market.okbbc.com/api/index", sources[0]["api_url"])
         self.assertNotEqual(sources[0]["home_url"], sources[0]["api_url"])
-        self.assertEqual("https://leader.okbbc.com/", sources[4]["home_url"])
-        self.assertEqual("https://leader.okbbc.com/api/index", sources[4]["api_url"])
+        self.assertEqual("https://leader.okbbc.com/", sources[3]["home_url"])
+        self.assertEqual("https://leader.okbbc.com/api/index", sources[3]["api_url"])
 
     def test_all_sources_payload_preserves_source_order(self):
         def fake_fetch(source_id):
@@ -24,14 +24,14 @@ class ServerPayloadTests(unittest.TestCase):
         payload = server.build_all_sources_payload(fake_fetch)
 
         self.assertTrue(payload["ok"])
-        self.assertEqual(["market", "theme", "shadow", "position", "leader"], [item["id"] for item in payload["sources"]])
+        self.assertEqual(["market", "theme", "shadow", "leader", "position"], [item["id"] for item in payload["sources"]])
 
     def test_footer_links_include_system_and_channels(self):
         links = server.footer_links()
 
-        self.assertEqual(["invest", "market", "theme", "shadow", "position", "leader"], [item["id"] for item in links])
+        self.assertEqual(["invest", "market", "theme", "shadow", "leader", "position"], [item["id"] for item in links])
         self.assertEqual("https://invest.okbbc.com/", links[0]["url"])
-        self.assertEqual("https://leader.okbbc.com/", links[-1]["url"])
+        self.assertEqual("https://leader.okbbc.com/", links[4]["url"])
 
     def test_footer_payload_prefers_realtime_shanghai_index(self):
         def fake_quote():

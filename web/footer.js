@@ -4,10 +4,10 @@
     { id: "market", label: "市场", title: "A股市场评分", url: "https://market.okbbc.com/" },
     { id: "theme", label: "主线", title: "主题主线排名", url: "https://theme.okbbc.com/" },
     { id: "shadow", label: "影子", title: "影子观察", url: "https://shadow.okbbc.com/" },
-    { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
     { id: "leader", label: "龙头", title: "龙头研究", url: "https://leader.okbbc.com/" },
+    { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-footer:v1";
+  const CACHE_KEY = "myinvest:unified-footer:v2";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
