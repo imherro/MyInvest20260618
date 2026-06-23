@@ -48,9 +48,14 @@ const LABELS = {
   top_theme: "最强主线",
   top_stage: "阶段",
   top_score: "评分",
+  theme: "主线",
+  theme_name: "主线",
   theme_count: "主线数量",
   up_ratio: "上涨占比",
   report_id: "报告编号",
+  signal_type: "类型",
+  state: "状态",
+  score: "分数",
   code: "代码",
   name: "名称",
   symbol: "标的",
@@ -81,17 +86,21 @@ const LABELS = {
 
 const TABLE_COLUMNS = {
   market: ["name", "label", "metric", "score", "value", "status"],
-  theme: ["theme", "top_stage", "top_score", "sw_score", "ths_score", "etf_score", "limit_count"],
+  theme: ["signal_type", "theme", "state", "score"],
   shadow: ["code", "name", "target_weight_ratio", "drift_ratio", "pct_chg"],
   position: ["symbol", "action", "target_delta", "priority", "confidence"],
   leader: ["name", "code", "theme", "tracking_result", "deep_score"],
 };
 
 const TABLE_COLUMN_LIMITS = {
+  theme: 4,
   shadow: 5,
   position: 5,
   leader: 5,
 };
+
+const POLICY_MAINLINE_STATES = new Set(["accelerating", "sustained"]);
+const MARKET_HEAT_STAGES = ["主线确认", "次主线"];
 
 const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
 const LOCAL_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -179,6 +188,42 @@ function shadowAllocationItems(data) {
   return Array.isArray(allocations) ? allocations : [];
 }
 
+function themePolicyMainlineItems(data) {
+  const items = data?.mainline_ranking;
+  return Array.isArray(items) ? items : [];
+}
+
+function themeMarketHeatItems(data) {
+  const items = data?.theme_ranking;
+  return Array.isArray(items) ? items : [];
+}
+
+function averageNumbers(values) {
+  const numbers = values.filter((value) => typeof value === "number");
+  if (!numbers.length) return null;
+  return numbers.reduce((total, value) => total + value, 0) / numbers.length;
+}
+
+function themeSignalRows(data) {
+  const policyRows = themePolicyMainlineItems(data)
+    .filter((item) => POLICY_MAINLINE_STATES.has(item.lifecycle_state))
+    .map((item) => ({
+      signal_type: "政策主线",
+      theme: item.theme_name,
+      state: item.lifecycle_state,
+      score: item.mainline_score_v6,
+    }));
+  const heatRows = themeMarketHeatItems(data)
+    .filter((item) => MARKET_HEAT_STAGES.some((stage) => String(item.stage || "").includes(stage)))
+    .map((item) => ({
+      signal_type: "市场热度",
+      theme: item.theme,
+      state: item.stage,
+      score: averageNumbers([item.sw_score, item.ths_score, item.etf_score]),
+    }));
+  return [...policyRows, ...heatRows].slice(0, 8);
+}
+
 function leaderTrackingResult(item) {
   return [item.deep_rating, item.deep_label].filter(Boolean).join(" ");
 }
@@ -228,6 +273,9 @@ function pickSummary(source) {
 }
 
 function pickRows(source) {
+  if (source.id === "theme") {
+    return themeSignalRows(source.data);
+  }
   if (source.id === "shadow") {
     return shadowAllocationItems(source.data)
       .map((item) => ({
