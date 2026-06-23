@@ -72,6 +72,16 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
                 "accent": "position",
             },
         ),
+        (
+            "leader",
+            {
+                "label": "龙头",
+                "subtitle": "龙头研究",
+                "home_url": "https://leader.okbbc.com/",
+                "api_url": "https://leader.okbbc.com/api/index",
+                "accent": "leader",
+            },
+        ),
     ]
 )
 

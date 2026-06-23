@@ -10,6 +10,7 @@
   --theme: #166f7a;
   --shadow: #6b5b95;
   --position: #9a6a16;
+  --leader: #4f7a45;
   --ok: #1d7f4d;
   --bad: #b42318;
   --warn: #986f0b;
@@ -145,7 +146,7 @@ main {
 
 .entry-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -363,6 +364,10 @@ pre {
 
 .accent-position {
   --accent-color: var(--position);
+}
+
+.accent-leader {
+  --accent-color: var(--leader);
 }
 
 @keyframes spin {

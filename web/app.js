@@ -27,6 +27,13 @@ const CHANNELS = [
     home_url: "https://position.okbbc.com/",
     accent: "position",
   },
+  {
+    id: "leader",
+    label: "龙头",
+    subtitle: "龙头研究",
+    home_url: "https://leader.okbbc.com/",
+    accent: "leader",
+  },
 ];
 const SOURCE_ORDER = CHANNELS.map((source) => source.id);
 const CHANNEL_BY_ID = new Map(CHANNELS.map((source) => [source.id, source]));
@@ -58,6 +65,7 @@ const TABLE_COLUMNS = {
   theme: ["theme", "top_stage", "top_score", "sw_score", "ths_score", "etf_score", "limit_count"],
   shadow: ["name", "theme", "subject", "score", "status", "signal", "reason"],
   position: ["name", "asset", "code", "action", "target", "position", "reason"],
+  leader: ["name", "stock_name", "code", "theme", "score", "status", "reason"],
 };
 
 const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";

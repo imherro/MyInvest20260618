@@ -8,12 +8,14 @@ class ServerPayloadTests(unittest.TestCase):
     def setUp(self):
         server.clear_source_cache()
 
-    def test_public_sources_have_four_entries(self):
+    def test_public_sources_have_expected_entries(self):
         sources = server.public_sources()
-        self.assertEqual(["market", "theme", "shadow", "position"], [item["id"] for item in sources])
+        self.assertEqual(["market", "theme", "shadow", "position", "leader"], [item["id"] for item in sources])
         self.assertEqual("https://market.okbbc.com/", sources[0]["home_url"])
         self.assertEqual("https://market.okbbc.com/api/index", sources[0]["api_url"])
         self.assertNotEqual(sources[0]["home_url"], sources[0]["api_url"])
+        self.assertEqual("https://leader.okbbc.com/", sources[4]["home_url"])
+        self.assertEqual("https://leader.okbbc.com/api/index", sources[4]["api_url"])
 
     def test_all_sources_payload_preserves_source_order(self):
         def fake_fetch(source_id):
@@ -22,7 +24,7 @@ class ServerPayloadTests(unittest.TestCase):
         payload = server.build_all_sources_payload(fake_fetch)
 
         self.assertTrue(payload["ok"])
-        self.assertEqual(["market", "theme", "shadow", "position"], [item["id"] for item in payload["sources"]])
+        self.assertEqual(["market", "theme", "shadow", "position", "leader"], [item["id"] for item in payload["sources"]])
 
     def test_cached_source_reuses_value_inside_ttl(self):
         calls = []
