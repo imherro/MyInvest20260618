@@ -17,12 +17,14 @@ from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parent
 WEB_ROOT = ROOT / "web"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
+PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 REQUEST_TIMEOUT_SECONDS = 12
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 CACHE_TTL_SECONDS = 10 * 60
@@ -94,6 +96,10 @@ def utc_iso_from_epoch(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat(timespec="seconds")
 
 
+def china_now_iso() -> str:
+    return datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="seconds")
+
+
 def source_config(source_id: str, source: dict[str, str]) -> dict[str, str]:
     return {
         "id": source_id,
@@ -107,6 +113,26 @@ def source_config(source_id: str, source: dict[str, str]) -> dict[str, str]:
 
 def public_sources() -> list[dict[str, str]]:
     return [source_config(source_id, source) for source_id, source in SOURCES.items()]
+
+
+def footer_links() -> list[dict[str, str]]:
+    return [
+        {
+            "id": "invest",
+            "label": "本系统",
+            "title": "MyInvest 总览",
+            "url": PUBLIC_HOME_URL,
+        },
+        *[
+            {
+                "id": source_id,
+                "label": source["label"],
+                "title": source["subtitle"],
+                "url": source["home_url"],
+            }
+            for source_id, source in SOURCES.items()
+        ],
+    ]
 
 
 def decode_response(body: bytes, content_type: str) -> Any:
@@ -176,6 +202,25 @@ def fetch_source(source_id: str) -> dict[str, Any]:
             "error": exc.__class__.__name__,
             "detail": str(exc),
         }
+
+
+def extract_shanghai_index(market_source: dict[str, Any]) -> dict[str, Any]:
+    data = market_source.get("data") or {}
+    summary = data.get("summary") or {}
+    data_quality = summary.get("data_quality") or {}
+    cross_validation = data_quality.get("cross_validation") or {}
+    baostock_indices = cross_validation.get("baostock_indices") or {}
+    shanghai = baostock_indices.get("000001.SH") or {}
+    value = shanghai.get("tushare_close") or shanghai.get("baostock_close")
+    return {
+        "name": "上证指数",
+        "code": "000001.SH",
+        "value": value,
+        "display": f"{value:.2f}" if isinstance(value, (int, float)) else "--",
+        "as_of": summary.get("basis_trade_date") or data_quality.get("generated_at"),
+        "source": SOURCES["market"]["api_url"],
+        "available": value is not None,
+    }
 
 
 def clear_source_cache(source_id: str | None = None) -> None:
@@ -303,6 +348,20 @@ def build_single_source_payload(
     )
 
 
+def build_footer_payload(
+    fetcher: Callable[[str], dict[str, Any]] = fetch_source,
+) -> dict[str, Any]:
+    generated_at = china_now_iso()
+    market_source = fetch_source_cached("market", fetcher=fetcher)
+    return {
+        "ok": True,
+        "generated_at": generated_at,
+        "timezone": "Asia/Shanghai",
+        "market_index": extract_shanghai_index(market_source),
+        "links": footer_links(),
+    }
+
+
 class WebHubHandler(BaseHTTPRequestHandler):
     server_version = "MyInvestWebHub/1.0"
 
@@ -317,6 +376,9 @@ class WebHubHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/config":
             self.write_json({"ok": True, "sources": public_sources()})
+            return
+        if path == "/api/footer":
+            self.write_json(build_footer_payload(), cors=True)
             return
         if path == "/api/sources":
             self.write_json(build_all_sources_payload(force_refresh=force_refresh))
@@ -355,12 +417,20 @@ class WebHubHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def write_json(self, payload: dict[str, Any], status: int = HTTPStatus.OK) -> None:
+    def write_json(
+        self,
+        payload: dict[str, Any],
+        status: int = HTTPStatus.OK,
+        *,
+        cors: bool = False,
+    ) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        if cors:
+            self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 

@@ -31,3 +31,26 @@ http://127.0.0.1:8888/
 ```powershell
 python -m unittest discover -s tests -q
 ```
+
+## 统一 Footer
+
+数据 API：
+
+```text
+https://invest.okbbc.com/api/footer
+```
+
+子系统直接嵌入：
+
+```html
+<script src="https://invest.okbbc.com/footer.js" defer></script>
+```
+
+指定挂载位置：
+
+```html
+<div data-myinvest-footer></div>
+<script src="https://invest.okbbc.com/footer.js" defer></script>
+```
+
+Footer 显示当前时间、上证指数，以及本系统和各子频道链接。链接不设置新窗口打开。
