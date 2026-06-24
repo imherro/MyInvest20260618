@@ -101,6 +101,7 @@ const TABLE_COLUMN_LIMITS = {
 
 const POLICY_MAINLINE_STATES = new Set(["accelerating", "sustained"]);
 const MARKET_HEAT_STAGES = ["主线确认", "次主线"];
+const POST_CLOSE_READY_HOUR = 20;
 
 const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
 const LOCAL_CACHE_TTL_MS = 10 * 60 * 1000;
@@ -123,6 +124,54 @@ function fmtTime(value) {
   }).format(date);
 }
 
+function fmtDateUTC(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function chinaDateParts(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+    hour12: false,
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    hour: Number(values.hour),
+  };
+}
+
+function isWeekendUTC(date) {
+  const day = date.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function previousWeekdayUTC(date) {
+  const result = new Date(date.getTime());
+  do {
+    result.setUTCDate(result.getUTCDate() - 1);
+  } while (isWeekendUTC(result));
+  return result;
+}
+
+function expectedBasisDate(now = new Date()) {
+  const parts = chinaDateParts(now);
+  let date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  if (isWeekendUTC(date) || parts.hour < POST_CLOSE_READY_HOUR) {
+    date = previousWeekdayUTC(date);
+  }
+  return fmtDateUTC(date);
+}
+
 function fmtValue(value) {
   if (value === null || value === undefined || value === "") return "暂无";
   if (typeof value === "number") {
@@ -141,6 +190,66 @@ function fieldLabel(key) {
 
 function isPrimitive(value) {
   return ["string", "number", "boolean"].includes(typeof value) || value === null;
+}
+
+function normalizeBasisDate(value) {
+  if (!value) return null;
+  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : null;
+}
+
+function sourceBasisDate(source) {
+  const data = source?.data || {};
+  const sourceMap = {
+    market: data.summary?.basis_trade_date,
+    theme: data.latest_report?.basis_date,
+    shadow: data.run?.basis_date || data.metrics?.basis_date,
+    leader: data.report?.basis_date,
+    position: data.page?.basis_date,
+  };
+  return normalizeBasisDate(sourceMap[source?.id]);
+}
+
+function referenceBasisDate() {
+  return sourceBasisDate(state.get("market")) || expectedBasisDate();
+}
+
+function basisFreshness(source) {
+  if (!source || source.pending || !source.ok) return null;
+  const basis = sourceBasisDate(source);
+  const expected = source.id === "market" ? expectedBasisDate() : referenceBasisDate();
+  if (!basis) {
+    return {
+      status: "missing",
+      basis,
+      expected,
+      message: expected ? `未找到基准日，应为 ${expected}` : "未找到基准日",
+    };
+  }
+  if (expected && basis < expected) {
+    return {
+      status: "stale",
+      basis,
+      expected,
+      message: `基准日 ${basis}，应为 ${expected}`,
+    };
+  }
+  return {
+    status: "ok",
+    basis,
+    expected,
+    message: `基准日 ${basis}`,
+  };
+}
+
+function withBasisMetrics(metrics, source) {
+  const freshness = basisFreshness(source);
+  if (!freshness) return metrics;
+  const next = [...metrics];
+  const hasBasis = next.some((metric) => ["基准日期", "基准交易日", "数据基准日"].includes(metric.label));
+  if (!hasBasis && freshness.basis) next.unshift({ label: "数据基准日", value: freshness.basis });
+  if (freshness.status !== "ok") next.unshift({ label: "更新提示", value: freshness.message });
+  return next;
 }
 
 function compactPrimitiveEntries(object, preferredKeys = []) {
@@ -355,7 +464,16 @@ function renderEntries() {
     if (source.pending) {
       meta.textContent = "入口";
     } else {
-      meta.textContent = source.ok ? fmtTime(source.fetched_at) : `错误 ${source.status || ""}`.trim();
+      const freshness = basisFreshness(source);
+      if (freshness?.status === "stale") {
+        meta.textContent = `滞后 ${freshness.basis}`;
+      } else if (freshness?.status === "missing") {
+        meta.textContent = "缺基准日";
+      } else if (freshness?.basis) {
+        meta.textContent = `基准 ${freshness.basis}`;
+      } else {
+        meta.textContent = source.ok ? fmtTime(source.fetched_at) : `错误 ${source.status || ""}`.trim();
+      }
     }
     entryGrid.append(node);
   }
@@ -390,6 +508,21 @@ function renderBadge(source) {
   timeBadge.className = "badge";
   timeBadge.textContent = `刷新 ${fmtTime(source.fetched_at)}`;
   fragment.append(timeBadge);
+
+  const freshness = basisFreshness(source);
+  if (freshness) {
+    const basisBadge = document.createElement("span");
+    basisBadge.className = freshness.status === "ok" ? "badge ok" : "badge warn";
+    basisBadge.textContent = freshness.basis ? `基准 ${freshness.basis}` : "缺基准日";
+    fragment.append(basisBadge);
+
+    if (freshness.status !== "ok" && freshness.expected) {
+      const expectedBadge = document.createElement("span");
+      expectedBadge.className = "badge warn";
+      expectedBadge.textContent = `应为 ${freshness.expected}`;
+      fragment.append(expectedBadge);
+    }
+  }
 
   if (source.cache) {
     const cacheBadge = document.createElement("span");
@@ -429,6 +562,7 @@ function renderMetrics(container, source) {
     ];
   } else {
     metrics = source.ok ? pickSummary(source) : [{ label: "错误", value: source.error || "接口请求失败" }];
+    metrics = source.ok ? withBasisMetrics(metrics, source) : metrics;
   }
   if (!metrics.length) {
     const item = document.createElement("div");
