@@ -31,11 +31,12 @@ class ServerPayloadTests(unittest.TestCase):
     def test_footer_links_include_system_and_channels(self):
         links = server.footer_links()
 
-        self.assertEqual(["invest", "market", "theme", "shadow", "leader", "stock", "position"], [item["id"] for item in links])
+        self.assertEqual(["invest", "market", "theme", "shadow", "leader", "etf", "stock", "position"], [item["id"] for item in links])
         self.assertEqual("首页", links[0]["label"])
         self.assertEqual("https://invest.okbbc.com/", links[0]["url"])
         self.assertEqual("https://leader.okbbc.com/", links[4]["url"])
-        self.assertEqual("https://stock.okbbc.com/", links[5]["url"])
+        self.assertEqual("https://etf.okbbc.com/", links[5]["url"])
+        self.assertEqual("https://stock.okbbc.com/", links[6]["url"])
 
     def test_footer_payload_prefers_realtime_shanghai_index(self):
         def fake_quote():

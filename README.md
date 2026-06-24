@@ -54,4 +54,4 @@ https://invest.okbbc.com/api/footer
 <script src="https://invest.okbbc.com/footer.js" defer></script>
 ```
 
-Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页和各子频道链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；首页和子频道链接仍在当前页打开。
+Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页、ETF 和各子频道链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；首页、ETF 和子频道链接仍在当前页打开。

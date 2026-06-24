@@ -26,6 +26,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
+ETF_HOME_URL = "https://etf.okbbc.com/"
 SHANGHAI_REALTIME_QUOTE_URL = (
     "https://push2.eastmoney.com/api/qt/stock/get"
     "?secid=1.000001&fields=f43,f57,f58,f60,f169,f170,f86"
@@ -135,23 +136,33 @@ def public_sources() -> list[dict[str, str]]:
 
 
 def footer_links() -> list[dict[str, str]]:
-    return [
+    links = [
         {
             "id": "invest",
             "label": "首页",
             "title": "MyInvest 总览",
             "url": PUBLIC_HOME_URL,
         },
-        *[
+    ]
+    for source_id, source in SOURCES.items():
+        if source_id == "stock":
+            links.append(
+                {
+                    "id": "etf",
+                    "label": "ETF",
+                    "title": "ETF研究",
+                    "url": ETF_HOME_URL,
+                }
+            )
+        links.append(
             {
                 "id": source_id,
                 "label": source["label"],
                 "title": source["subtitle"],
                 "url": source["home_url"],
             }
-            for source_id, source in SOURCES.items()
-        ],
-    ]
+        )
+    return links
 
 
 def decode_response(body: bytes, content_type: str) -> Any:
