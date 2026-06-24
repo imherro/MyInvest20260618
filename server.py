@@ -27,6 +27,7 @@ DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
 ETF_HOME_URL = "https://etf.okbbc.com/"
+PICKING_HOME_URL = "https://picking.okbbc.com/"
 SHANGHAI_REALTIME_QUOTE_URL = (
     "https://push2.eastmoney.com/api/qt/stock/get"
     "?secid=1.000001&fields=f43,f57,f58,f60,f169,f170,f86"
@@ -154,6 +155,14 @@ def footer_links() -> list[dict[str, str]]:
                     "url": ETF_HOME_URL,
                 }
             )
+            links.append(
+                {
+                    "id": "picking",
+                    "label": "选股",
+                    "title": "选股",
+                    "url": PICKING_HOME_URL,
+                }
+            )
         links.append(
             {
                 "id": source_id,
@@ -163,6 +172,10 @@ def footer_links() -> list[dict[str, str]]:
             }
         )
     return links
+
+
+def header_links() -> list[dict[str, str]]:
+    return footer_links()
 
 
 def decode_response(body: bytes, content_type: str) -> Any:
@@ -480,6 +493,19 @@ def build_footer_payload(
     }
 
 
+def build_header_payload() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "generated_at": china_now_iso(),
+        "timezone": "Asia/Shanghai",
+        "brand": {
+            "label": "MyInvest",
+            "url": PUBLIC_HOME_URL,
+        },
+        "links": header_links(),
+    }
+
+
 class WebHubHandler(BaseHTTPRequestHandler):
     server_version = "MyInvestWebHub/1.0"
 
@@ -497,6 +523,9 @@ class WebHubHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/footer":
             self.write_json(build_footer_payload(), cors=True)
+            return
+        if path == "/api/header":
+            self.write_json(build_header_payload(), cors=True)
             return
         if path == "/api/sources":
             self.write_json(build_all_sources_payload(force_refresh=force_refresh))

@@ -10,7 +10,7 @@
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-footer:v6";
+  const CACHE_KEY = "myinvest:unified-header:v1";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
@@ -20,12 +20,12 @@
     if (script?.dataset.api) return script.dataset.api;
     if (script?.src) {
       try {
-        return `${new URL(script.src, window.location.href).origin}/api/footer`;
+        return `${new URL(script.src, window.location.href).origin}/api/header`;
       } catch {
-        return `${DEFAULT_API_ORIGIN}/api/footer`;
+        return `${DEFAULT_API_ORIGIN}/api/header`;
       }
     }
-    return `${DEFAULT_API_ORIGIN}/api/footer`;
+    return `${DEFAULT_API_ORIGIN}/api/header`;
   }
 
   function mountTarget() {
@@ -35,92 +35,79 @@
       const target = document.querySelector(selector);
       if (target) return target;
     }
-    const dataTarget = document.querySelector("[data-myinvest-footer]");
+    const dataTarget = document.querySelector("[data-myinvest-header]");
     if (dataTarget) return dataTarget;
     const target = document.createElement("div");
-    target.setAttribute("data-myinvest-footer", "");
-    document.body.append(target);
+    target.setAttribute("data-myinvest-header", "");
+    document.body.prepend(target);
     return target;
   }
 
   function ensureStyles() {
-    if (document.getElementById("myinvest-unified-footer-style")) return;
+    if (document.getElementById("myinvest-unified-header-style")) return;
     const style = document.createElement("style");
-    style.id = "myinvest-unified-footer-style";
+    style.id = "myinvest-unified-header-style";
     style.textContent = `
-      .mi-footer {
-        border-top: 1px solid #d9dfd8;
+      .mi-header {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        border-bottom: 1px solid #d9dfd8;
         background: #f6f7f3;
         color: #17201b;
         font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
-        font-size: 13px;
+        font-size: 14px;
       }
-      .mi-footer__inner {
+      .mi-header__inner {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 14px;
+        gap: 16px;
         width: min(1280px, 100%);
         margin: 0 auto;
-        padding: 12px 24px;
+        padding: 10px 24px;
       }
-      .mi-footer__meta,
-      .mi-footer__links {
+      .mi-header__brand {
+        color: #17201b;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .mi-header__nav {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 8px 12px;
+        justify-content: flex-end;
+        gap: 4px;
       }
-      .mi-footer__brand {
-        font-weight: 700;
+      .mi-header__link {
+        border-radius: 6px;
+        color: #36443a;
+        line-height: 1;
+        min-height: 30px;
+        padding: 8px 10px;
+        text-decoration: none;
+        white-space: nowrap;
       }
-      .mi-footer__pill {
-        color: #637066;
-      }
-      .mi-footer__index {
+      .mi-header__link:hover,
+      .mi-header__link--active {
+        background: #e9eee7;
         color: #166f7a;
-        font-weight: 700;
-        text-decoration: none;
-      }
-      .mi-footer__index:hover {
-        text-decoration: underline;
-      }
-      .mi-footer__index--up {
-        color: #b42318;
-      }
-      .mi-footer__index--down {
-        color: #1d7f4d;
-      }
-      .mi-footer__link {
-        color: #17201b;
-        text-decoration: none;
-      }
-      .mi-footer__link:hover {
-        text-decoration: underline;
       }
       @media (max-width: 720px) {
-        .mi-footer__inner {
+        .mi-header__inner {
           align-items: flex-start;
           flex-direction: column;
-          padding: 12px 16px;
+          padding: 10px 16px;
+        }
+        .mi-header__nav {
+          justify-content: flex-start;
         }
       }
     `;
     document.head.append(style);
-  }
-
-  function formatTime(value) {
-    const date = value ? new Date(value) : new Date();
-    return new Intl.DateTimeFormat("zh-CN", {
-      timeZone: "Asia/Shanghai",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).format(date);
   }
 
   function readCache() {
@@ -142,7 +129,7 @@
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({ stored_at: Date.now(), payload }));
     } catch {
-      // Footer cache is best-effort.
+      // Header cache is best-effort.
     }
   }
 
@@ -154,76 +141,58 @@
     return Array.isArray(payload?.links) && payload.links.length ? payload.links : FALLBACK_LINKS;
   }
 
-  function indexText(payload) {
-    const index = payload?.market_index;
-    if (!index?.available) return "上证指数 --";
-    const change = index.change_display && index.change_pct_display
-      ? ` ${index.change_display} (${index.change_pct_display})`
-      : "";
-    const suffix = index.as_of ? ` · ${index.as_of}` : "";
-    return `${index.name || "上证指数"} ${index.display || "--"}${change}${suffix}`;
+  function brandInfo(payload) {
+    return payload?.brand?.label && payload?.brand?.url
+      ? payload.brand
+      : { label: "MyInvest", url: "https://invest.okbbc.com/" };
+  }
+
+  function isActiveLink(url) {
+    try {
+      const linkUrl = new URL(url, window.location.href);
+      return linkUrl.hostname === window.location.hostname;
+    } catch {
+      return false;
+    }
   }
 
   function render(target, payload) {
     ensureStyles();
     clearNode(target);
 
-    const footer = document.createElement("footer");
-    footer.className = "mi-footer";
-    footer.setAttribute("role", "contentinfo");
+    const header = document.createElement("header");
+    header.className = "mi-header";
+    header.setAttribute("role", "banner");
 
     const inner = document.createElement("div");
-    inner.className = "mi-footer__inner";
+    inner.className = "mi-header__inner";
 
-    const meta = document.createElement("div");
-    meta.className = "mi-footer__meta";
-
-    const brand = document.createElement("span");
-    brand.className = "mi-footer__brand";
-    brand.textContent = "MyInvest";
-
-    const time = document.createElement("span");
-    time.className = "mi-footer__pill";
-    time.setAttribute("data-mi-footer-time", "");
-    time.textContent = formatTime(payload?.generated_at);
-
-    const index = document.createElement(payload?.market_index?.link ? "a" : "span");
-    index.className = "mi-footer__index";
-    if (typeof payload?.market_index?.change === "number") {
-      if (payload.market_index.change > 0) index.classList.add("mi-footer__index--up");
-      if (payload.market_index.change < 0) index.classList.add("mi-footer__index--down");
-    }
-    if (payload?.market_index?.link) {
-      index.href = payload.market_index.link;
-      index.target = "_blank";
-      index.rel = "noopener noreferrer";
-    }
-    index.textContent = indexText(payload);
-
-    meta.append(brand, time, index);
+    const brand = brandInfo(payload);
+    const brandLink = document.createElement("a");
+    brandLink.className = "mi-header__brand";
+    brandLink.href = brand.url;
+    brandLink.textContent = brand.label;
 
     const nav = document.createElement("nav");
-    nav.className = "mi-footer__links";
-    nav.setAttribute("aria-label", "MyInvest 系统链接");
+    nav.className = "mi-header__nav";
+    nav.setAttribute("aria-label", "MyInvest 系统导航");
 
     for (const item of linkList(payload)) {
       const link = document.createElement("a");
-      link.className = "mi-footer__link";
+      link.className = "mi-header__link";
       link.href = item.url;
       link.textContent = item.label;
       link.title = item.title || item.label;
+      if (isActiveLink(item.url)) {
+        link.classList.add("mi-header__link--active");
+        link.setAttribute("aria-current", "page");
+      }
       nav.append(link);
     }
 
-    inner.append(meta, nav);
-    footer.append(inner);
-    target.append(footer);
-
-    window.clearInterval(target.__myInvestFooterTimer);
-    target.__myInvestFooterTimer = window.setInterval(() => {
-      const timeNode = target.querySelector("[data-mi-footer-time]");
-      if (timeNode) timeNode.textContent = formatTime();
-    }, 1000);
+    inner.append(brandLink, nav);
+    header.append(inner);
+    target.append(header);
   }
 
   async function hydrate(target, apiUrl) {
@@ -236,14 +205,14 @@
       writeCache(payload);
       render(target, payload);
     } catch {
-      // Keep fallback or cached footer visible when the API is unavailable.
+      // Keep fallback or cached header visible when the API is unavailable.
     }
   }
 
   function start() {
     const target = mountTarget();
     const cached = readCache();
-    render(target, cached || { generated_at: new Date().toISOString(), links: FALLBACK_LINKS });
+    render(target, cached || { brand: { label: "MyInvest", url: "https://invest.okbbc.com/" }, links: FALLBACK_LINKS });
     hydrate(target, scriptApiUrl());
   }
 
