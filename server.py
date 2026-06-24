@@ -26,6 +26,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
+TEN_HOME_URL = "https://ten.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
 PICKING_HOME_URL = "https://picking.okbbc.com/"
 SHANGHAI_REALTIME_QUOTE_URL = (
@@ -147,6 +148,14 @@ def footer_links() -> list[dict[str, str]]:
     ]
     for source_id, source in SOURCES.items():
         if source_id == "stock":
+            links.append(
+                {
+                    "id": "ten",
+                    "label": "十倍",
+                    "title": "十倍",
+                    "url": TEN_HOME_URL,
+                }
+            )
             links.append(
                 {
                     "id": "etf",

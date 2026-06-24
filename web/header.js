@@ -5,12 +5,13 @@
     { id: "theme", label: "主线", title: "主题主线排名", url: "https://theme.okbbc.com/" },
     { id: "shadow", label: "影子", title: "影子观察", url: "https://shadow.okbbc.com/" },
     { id: "leader", label: "龙头", title: "龙头研究", url: "https://leader.okbbc.com/" },
+    { id: "ten", label: "十倍", title: "十倍", url: "https://ten.okbbc.com/" },
     { id: "etf", label: "ETF", title: "ETF研究", url: "https://etf.okbbc.com/" },
     { id: "picking", label: "选股", title: "选股", url: "https://picking.okbbc.com/" },
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-header:v1";
+  const CACHE_KEY = "myinvest:unified-header:v2";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
