@@ -138,7 +138,7 @@ def footer_links() -> list[dict[str, str]]:
     return [
         {
             "id": "invest",
-            "label": "本系统",
+            "label": "首页",
             "title": "MyInvest 总览",
             "url": PUBLIC_HOME_URL,
         },
