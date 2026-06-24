@@ -11,6 +11,7 @@
   --shadow: #6b5b95;
   --position: #9a6a16;
   --leader: #4f7a45;
+  --stock: #4f6f9a;
   --ok: #1d7f4d;
   --bad: #b42318;
   --warn: #986f0b;
@@ -370,6 +371,10 @@ pre {
 
 .accent-leader {
   --accent-color: var(--leader);
+}
+
+.accent-stock {
+  --accent-color: var(--stock);
 }
 
 @keyframes spin {

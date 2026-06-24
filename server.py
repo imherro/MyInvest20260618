@@ -84,6 +84,16 @@ SOURCES: "OrderedDict[str, dict[str, str]]" = OrderedDict(
             },
         ),
         (
+            "stock",
+            {
+                "label": "个股",
+                "subtitle": "个股研究",
+                "home_url": "https://stock.okbbc.com/",
+                "api_url": "https://stock.okbbc.com/api/index",
+                "accent": "stock",
+            },
+        ),
+        (
             "position",
             {
                 "label": "操作",

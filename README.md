@@ -1,11 +1,12 @@
 # MyInvest20260618 Web Hub
 
-一个本地 Web 总览页，用于汇聚四类主要信息：
+一个本地 Web 总览页，用于汇聚多个研究频道信息：
 
 - 市场：`https://market.okbbc.com/api/index`
 - 主线：`https://theme.okbbc.com/api/index`
 - 影子：`https://shadow.okbbc.com/api/index`
 - 龙头：`https://leader.okbbc.com/api/index`
+- 个股：`https://stock.okbbc.com/api/index`
 - 操作：`https://position.okbbc.com/api/index`
 
 页面顶部的频道首页入口指向频道根地址，例如 `https://market.okbbc.com/`。后台数据刷新仍然使用对应的 `/api/index` 接口。

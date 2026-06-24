@@ -28,6 +28,13 @@ const CHANNELS = [
     accent: "leader",
   },
   {
+    id: "stock",
+    label: "个股",
+    subtitle: "个股研究",
+    home_url: "https://stock.okbbc.com/",
+    accent: "stock",
+  },
+  {
     id: "position",
     label: "操作",
     subtitle: "仓位与执行",
@@ -90,6 +97,7 @@ const TABLE_COLUMNS = {
   shadow: ["code", "name", "target_weight_ratio", "drift_ratio", "pct_chg"],
   position: ["symbol", "action", "target_delta", "priority", "confidence"],
   leader: ["name", "code", "theme", "tracking_result", "deep_score"],
+  stock: ["name", "code", "theme", "tracking_result", "deep_score"],
 };
 
 const TABLE_COLUMN_LIMITS = {
@@ -97,6 +105,7 @@ const TABLE_COLUMN_LIMITS = {
   shadow: 5,
   position: 5,
   leader: 5,
+  stock: 5,
 };
 
 const POLICY_MAINLINE_STATES = new Set(["accelerating", "sustained"]);
@@ -205,6 +214,7 @@ function sourceBasisDate(source) {
     theme: data.latest_report?.basis_date,
     shadow: data.run?.basis_date || data.metrics?.basis_date,
     leader: data.report?.basis_date,
+    stock: data.report?.basis_date,
     position: data.page?.basis_date,
   };
   return normalizeBasisDate(sourceMap[source?.id]);
@@ -281,6 +291,11 @@ function findFirstArray(value) {
 }
 
 function leaderKeyResultItems(data) {
+  const items = data?.key_results?.primary_output?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function stockKeyResultItems(data) {
   const items = data?.key_results?.primary_output?.items;
   return Array.isArray(items) ? items : [];
 }
@@ -369,6 +384,18 @@ function pickSummary(source) {
       ["title", "item_count", "report_id", "generated_at"],
     );
   }
+  if (source.id === "stock") {
+    return compactPrimitiveEntries(
+      {
+        title: data.key_results?.primary_output?.title || data.page?.title || "个股研究",
+        item_count: stockKeyResultItems(data).length,
+        report_id: data.report?.report_id,
+        basis_date: data.report?.basis_date,
+        generated_at: data.report?.generated_at,
+      },
+      ["title", "item_count", "report_id", "basis_date", "generated_at"],
+    );
+  }
   const candidate = data.latest_report || data.summary || data.page || data;
   return compactPrimitiveEntries(candidate, [
     "title",
@@ -398,6 +425,17 @@ function pickRows(source) {
   }
   if (source.id === "leader") {
     return leaderKeyResultItems(source.data)
+      .map((item) => ({
+        name: item.name,
+        code: item.code,
+        theme: item.theme,
+        tracking_result: leaderTrackingResult(item),
+        deep_score: item.deep_score,
+      }))
+      .slice(0, 8);
+  }
+  if (source.id === "stock") {
+    return stockKeyResultItems(source.data)
       .map((item) => ({
         name: item.name,
         code: item.code,
