@@ -190,7 +190,11 @@
       if (payload.market_index.change > 0) index.classList.add("mi-footer__index--up");
       if (payload.market_index.change < 0) index.classList.add("mi-footer__index--down");
     }
-    if (payload?.market_index?.link) index.href = payload.market_index.link;
+    if (payload?.market_index?.link) {
+      index.href = payload.market_index.link;
+      index.target = "_blank";
+      index.rel = "noopener noreferrer";
+    }
     index.textContent = indexText(payload);
 
     meta.append(brand, time, index);
