@@ -12,7 +12,7 @@
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-header:v4";
+  const CACHE_KEY = "myinvest:unified-header:v5";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
@@ -80,17 +80,31 @@
         white-space: nowrap;
       }
       .mi-header__logo-mark {
-        display: grid;
-        width: 28px;
-        height: 28px;
-        place-items: center;
-        border: 1px solid #17201b;
-        border-radius: 8px;
-        background: #17201b;
-        color: #f6f7f3;
-        font-size: 11px;
-        font-weight: 900;
-        line-height: 1;
+        width: 32px;
+        height: 32px;
+        flex: 0 0 auto;
+      }
+      .mi-header__logo-shell {
+        fill: #17201b;
+      }
+      .mi-header__logo-bull {
+        fill: #f6f7f3;
+      }
+      .mi-header__logo-horn {
+        fill: none;
+        stroke: #f6f7f3;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2.2;
+      }
+      .mi-header__logo-eye {
+        fill: #57b4bd;
+      }
+      .mi-header__logo-muzzle {
+        fill: none;
+        stroke: #17201b;
+        stroke-linecap: round;
+        stroke-width: 1.2;
       }
       .mi-header__logo-word {
         font-size: 16px;
@@ -98,8 +112,10 @@
         line-height: 1;
       }
       .mi-header__brand:hover .mi-header__logo-mark {
-        border-color: #166f7a;
-        background: #166f7a;
+        color: #166f7a;
+      }
+      .mi-header__brand:hover .mi-header__logo-shell {
+        fill: #166f7a;
       }
       .mi-header__nav {
         display: flex;
@@ -199,10 +215,52 @@
     brandLink.href = brand.url;
     brandLink.setAttribute("aria-label", brand.label);
 
-    const brandMark = document.createElement("span");
-    brandMark.className = "mi-header__logo-mark";
+    const svgNamespace = "http://www.w3.org/2000/svg";
+    const brandMark = document.createElementNS(svgNamespace, "svg");
+    brandMark.setAttribute("class", "mi-header__logo-mark");
     brandMark.setAttribute("aria-hidden", "true");
-    brandMark.textContent = "MI";
+    brandMark.setAttribute("viewBox", "0 0 32 32");
+    brandMark.setAttribute("focusable", "false");
+
+    const shell = document.createElementNS(svgNamespace, "rect");
+    shell.setAttribute("class", "mi-header__logo-shell");
+    shell.setAttribute("x", "3");
+    shell.setAttribute("y", "3");
+    shell.setAttribute("width", "26");
+    shell.setAttribute("height", "26");
+    shell.setAttribute("rx", "7");
+
+    const horns = document.createElementNS(svgNamespace, "path");
+    horns.setAttribute("class", "mi-header__logo-horn");
+    horns.setAttribute(
+      "d",
+      "M10.5 14.2C7.5 12.4 6.4 9.1 8.4 7.5C10.1 8.3 11.2 10.2 11.8 12.6M21.5 14.2C24.5 12.4 25.6 9.1 23.6 7.5C21.9 8.3 20.8 10.2 20.2 12.6",
+    );
+
+    const head = document.createElementNS(svgNamespace, "path");
+    head.setAttribute("class", "mi-header__logo-bull");
+    head.setAttribute(
+      "d",
+      "M10.4 14.4C11.2 11.6 13.4 10.4 16 10.4C18.6 10.4 20.8 11.6 21.6 14.4L20.1 21.2C19.5 23.2 17.7 24.2 16 24.2C14.3 24.2 12.5 23.2 11.9 21.2Z",
+    );
+
+    const leftEye = document.createElementNS(svgNamespace, "circle");
+    leftEye.setAttribute("class", "mi-header__logo-eye");
+    leftEye.setAttribute("cx", "14.2");
+    leftEye.setAttribute("cy", "17.1");
+    leftEye.setAttribute("r", "0.9");
+
+    const rightEye = document.createElementNS(svgNamespace, "circle");
+    rightEye.setAttribute("class", "mi-header__logo-eye");
+    rightEye.setAttribute("cx", "17.8");
+    rightEye.setAttribute("cy", "17.1");
+    rightEye.setAttribute("r", "0.9");
+
+    const muzzle = document.createElementNS(svgNamespace, "path");
+    muzzle.setAttribute("class", "mi-header__logo-muzzle");
+    muzzle.setAttribute("d", "M14.2 20.5C15.1 21.1 16.9 21.1 17.8 20.5");
+
+    brandMark.append(shell, horns, head, leftEye, rightEye, muzzle);
 
     const brandWord = document.createElement("span");
     brandWord.className = "mi-header__logo-word";
