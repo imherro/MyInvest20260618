@@ -12,7 +12,7 @@
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-footer:v8";
+  const CACHE_KEY = "myinvest:unified-footer:v9";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
@@ -74,7 +74,27 @@
         gap: 8px 12px;
       }
       .mi-footer__brand {
-        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .mi-footer__logo-mark {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border: 1px solid #17201b;
+        border-radius: 7px;
+        background: #17201b;
+        color: #f6f7f3;
+        font-size: 10px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .mi-footer__logo-word {
+        line-height: 1;
       }
       .mi-footer__pill {
         color: #637066;
@@ -182,7 +202,17 @@
 
     const brand = document.createElement("span");
     brand.className = "mi-footer__brand";
-    brand.textContent = "MyInvest";
+
+    const brandMark = document.createElement("span");
+    brandMark.className = "mi-footer__logo-mark";
+    brandMark.setAttribute("aria-hidden", "true");
+    brandMark.textContent = "MI";
+
+    const brandWord = document.createElement("span");
+    brandWord.className = "mi-footer__logo-word";
+    brandWord.textContent = "MyInvest";
+
+    brand.append(brandMark, brandWord);
 
     const time = document.createElement("span");
     time.className = "mi-footer__pill";

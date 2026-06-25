@@ -12,7 +12,7 @@
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-header:v3";
+  const CACHE_KEY = "myinvest:unified-header:v4";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
@@ -70,12 +70,36 @@
         padding: 10px 24px;
       }
       .mi-header__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
         color: #17201b;
-        font-size: 16px;
-        font-weight: 800;
+        min-height: 34px;
         line-height: 1;
         text-decoration: none;
         white-space: nowrap;
+      }
+      .mi-header__logo-mark {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border: 1px solid #17201b;
+        border-radius: 8px;
+        background: #17201b;
+        color: #f6f7f3;
+        font-size: 11px;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .mi-header__logo-word {
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .mi-header__brand:hover .mi-header__logo-mark {
+        border-color: #166f7a;
+        background: #166f7a;
       }
       .mi-header__nav {
         display: flex;
@@ -173,7 +197,18 @@
     const brandLink = document.createElement("a");
     brandLink.className = "mi-header__brand";
     brandLink.href = brand.url;
-    brandLink.textContent = brand.label;
+    brandLink.setAttribute("aria-label", brand.label);
+
+    const brandMark = document.createElement("span");
+    brandMark.className = "mi-header__logo-mark";
+    brandMark.setAttribute("aria-hidden", "true");
+    brandMark.textContent = "MI";
+
+    const brandWord = document.createElement("span");
+    brandWord.className = "mi-header__logo-word";
+    brandWord.textContent = brand.label;
+
+    brandLink.append(brandMark, brandWord);
 
     const nav = document.createElement("nav");
     nav.className = "mi-header__nav";
