@@ -40,17 +40,13 @@ a {
 }
 
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 18px 32px;
-  background: rgba(246, 247, 243, 0.94);
+  margin-bottom: 18px;
+  padding: 0 0 18px;
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(12px);
 }
 
 .eyebrow,
@@ -409,7 +405,7 @@ pre {
 @media (max-width: 640px) {
   .topbar {
     align-items: flex-start;
-    padding: 16px;
+    gap: 12px;
   }
 
   main {

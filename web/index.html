@@ -4,28 +4,29 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MyInvest 信息总览</title>
-    <link rel="stylesheet" href="/styles.css?v=20260623-compact-tables" />
+    <link rel="stylesheet" href="/styles.css?v=20260625-unified-header" />
   </head>
   <body>
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">MyInvest 20260618</p>
-        <h1>信息总览</h1>
-      </div>
-      <div class="topbar-actions">
-        <span class="sync-time" id="global-status">入口已就绪</span>
-        <button class="icon-button primary" id="refresh-all" type="button" aria-label="全部刷新" title="全部刷新">
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16" />
-            <path d="M3 21v-5h5" />
-            <path d="M3 12A9 9 0 0 1 18.4 5.6L21 8" />
-            <path d="M21 3v5h-5" />
-          </svg>
-        </button>
-      </div>
-    </header>
+    <div data-myinvest-header></div>
 
     <main>
+      <section class="topbar" aria-label="页面状态">
+        <div>
+          <p class="eyebrow">数据总览</p>
+          <h1>信息总览</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="sync-time" id="global-status">入口已就绪</span>
+          <button class="icon-button primary" id="refresh-all" type="button" aria-label="全部刷新" title="全部刷新">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M21 12a9 9 0 0 1-15.4 6.4L3 16" />
+              <path d="M3 21v-5h5" />
+              <path d="M3 12A9 9 0 0 1 18.4 5.6L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+          </button>
+        </div>
+      </section>
       <nav class="entry-grid" id="entry-grid" aria-label="主页入口">
         <a class="entry-card accent-market" href="https://market.okbbc.com/">
           <span class="entry-accent"></span>
@@ -265,6 +266,7 @@
     </template>
 
     <div data-myinvest-footer></div>
+    <script src="/header.js?v=20260625-unified-header" defer></script>
     <script src="/app.js?v=20260625-refresh-spinner" defer></script>
     <script src="/footer.js?v=20260625-footer-cycle-link" defer></script>
   </body>
