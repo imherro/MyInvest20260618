@@ -239,6 +239,7 @@ main {
   display: inline-flex;
   min-height: 26px;
   align-items: center;
+  gap: 6px;
   border-radius: 999px;
   padding: 4px 9px;
   font-size: 12px;
@@ -259,6 +260,21 @@ main {
 .badge.warn {
   background: #fff5d6;
   color: var(--warn);
+}
+
+.badge.loading {
+  color: var(--theme);
+}
+
+.badge.loading::before {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  content: "";
+  flex: 0 0 auto;
+  animation: spin 0.75s linear infinite;
 }
 
 .metric-grid {

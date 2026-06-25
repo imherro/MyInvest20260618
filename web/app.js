@@ -479,6 +479,14 @@ function baseSource(sourceId) {
   };
 }
 
+function markRefreshing(sourceIds, refreshing) {
+  for (const sourceId of sourceIds) {
+    const current = state.get(sourceId) || baseSource(sourceId);
+    state.set(sourceId, { ...current, refreshing });
+  }
+  render();
+}
+
 function initializeShell() {
   for (const sourceId of SOURCE_ORDER) {
     if (!state.has(sourceId)) state.set(sourceId, baseSource(sourceId));
@@ -526,7 +534,7 @@ function renderBadge(source) {
     fragment.append(readyBadge);
 
     const updateBadge = document.createElement("span");
-    updateBadge.className = "badge";
+    updateBadge.className = "badge loading";
     updateBadge.textContent = "后台更新中";
     fragment.append(updateBadge);
     return fragment;
@@ -546,6 +554,13 @@ function renderBadge(source) {
   timeBadge.className = "badge";
   timeBadge.textContent = `刷新 ${fmtTime(source.fetched_at)}`;
   fragment.append(timeBadge);
+
+  if (source.refreshing) {
+    const refreshBadge = document.createElement("span");
+    refreshBadge.className = "badge loading";
+    refreshBadge.textContent = "更新中";
+    fragment.append(refreshBadge);
+  }
 
   const freshness = basisFreshness(source);
   if (freshness) {
@@ -785,19 +800,23 @@ function sourceRequestUrl(path, forceRefresh) {
 
 async function loadAll({ forceRefresh = false, quiet = false } = {}) {
   if (forceRefresh) clearLocalSnapshot();
+  markRefreshing(SOURCE_ORDER, true);
   if (!quiet) {
     setLoading(refreshAllButton, true);
     globalStatus.textContent = forceRefresh ? "清缓存刷新中" : "加载中";
   }
+  let completed = false;
   try {
     const response = await fetch(sourceRequestUrl("/api/sources", forceRefresh), { cache: "no-store" });
     const payload = await response.json();
     applySources(payload);
     writeLocalSnapshot(payload);
     globalStatus.textContent = `最近刷新 ${fmtTime(payload.generated_at)}`;
+    completed = true;
   } catch (error) {
     if (!quiet || !state.size) globalStatus.textContent = `刷新失败：${error.message}`;
   } finally {
+    if (!completed) markRefreshing(SOURCE_ORDER, false);
     if (!quiet) setLoading(refreshAllButton, false);
   }
 }
@@ -805,6 +824,8 @@ async function loadAll({ forceRefresh = false, quiet = false } = {}) {
 async function loadOne(sourceId, button, { forceRefresh = true } = {}) {
   if (forceRefresh) clearLocalSnapshot();
   setLoading(button, true);
+  markRefreshing([sourceId], true);
+  let completed = false;
   try {
     const response = await fetch(sourceRequestUrl(`/api/sources/${sourceId}`, forceRefresh), { cache: "no-store" });
     const payload = await response.json();
@@ -812,9 +833,11 @@ async function loadOne(sourceId, button, { forceRefresh = true } = {}) {
     render();
     writeLocalSnapshot(sourceSnapshot(payload.generated_at));
     globalStatus.textContent = `已刷新 ${state.get(sourceId)?.label || sourceId}`;
+    completed = true;
   } catch (error) {
     globalStatus.textContent = `刷新失败：${error.message}`;
   } finally {
+    if (!completed) markRefreshing([sourceId], false);
     setLoading(button, false);
   }
 }
