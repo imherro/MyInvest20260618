@@ -138,59 +138,103 @@ def public_sources() -> list[dict[str, str]]:
     return [source_config(source_id, source) for source_id, source in SOURCES.items()]
 
 
-def footer_links() -> list[dict[str, str]]:
-    links = [
-        {
-            "id": "invest",
-            "label": "首页",
-            "title": "MyInvest 总览",
-            "url": PUBLIC_HOME_URL,
-        },
+def api_root_url(home_url: str) -> str:
+    return f"{home_url.rstrip('/')}/api"
+
+
+def self_system_entry() -> dict[str, str]:
+    return {
+        "id": "invest",
+        "label": "首页",
+        "title": "MyInvest 总览",
+        "home_url": PUBLIC_HOME_URL,
+        "api_url": api_root_url(PUBLIC_HOME_URL),
+    }
+
+
+def external_system_entry(
+    system_id: str,
+    *,
+    label: str,
+    title: str,
+    home_url: str,
+    index_api_url: str | None = None,
+) -> dict[str, str]:
+    entry = {
+        "id": system_id,
+        "label": label,
+        "title": title,
+        "home_url": home_url,
+        "api_url": api_root_url(home_url),
+    }
+    if index_api_url:
+        entry["index_api_url"] = index_api_url
+    return entry
+
+
+def source_system_entry(source_id: str, source: dict[str, str]) -> dict[str, str]:
+    return external_system_entry(
+        source_id,
+        label=source["label"],
+        title=source["subtitle"],
+        home_url=source["home_url"],
+        index_api_url=source["api_url"],
+    )
+
+
+def system_entries() -> list[dict[str, str]]:
+    entries = [
+        self_system_entry(),
     ]
     for source_id, source in SOURCES.items():
         if source_id == "shadow":
-            links.append(
-                {
-                    "id": "cycle",
-                    "label": "周期",
-                    "title": "周期",
-                    "url": CYCLE_HOME_URL,
-                }
+            entries.append(
+                external_system_entry(
+                    "cycle",
+                    label="周期",
+                    title="周期",
+                    home_url=CYCLE_HOME_URL,
+                )
             )
         if source_id == "stock":
-            links.append(
-                {
-                    "id": "ten",
-                    "label": "十倍",
-                    "title": "十倍",
-                    "url": TEN_HOME_URL,
-                }
+            entries.append(
+                external_system_entry(
+                    "ten",
+                    label="十倍",
+                    title="十倍",
+                    home_url=TEN_HOME_URL,
+                )
             )
-            links.append(
-                {
-                    "id": "etf",
-                    "label": "ETF",
-                    "title": "ETF研究",
-                    "url": ETF_HOME_URL,
-                }
+            entries.append(
+                external_system_entry(
+                    "etf",
+                    label="ETF",
+                    title="ETF研究",
+                    home_url=ETF_HOME_URL,
+                )
             )
-            links.append(
-                {
-                    "id": "picking",
-                    "label": "选股",
-                    "title": "选股",
-                    "url": PICKING_HOME_URL,
-                }
+            entries.append(
+                external_system_entry(
+                    "picking",
+                    label="选股",
+                    title="选股",
+                    home_url=PICKING_HOME_URL,
+                )
             )
-        links.append(
-            {
-                "id": source_id,
-                "label": source["label"],
-                "title": source["subtitle"],
-                "url": source["home_url"],
-            }
-        )
-    return links
+        entries.append(source_system_entry(source_id, source))
+    return entries
+
+
+def footer_links() -> list[dict[str, str]]:
+    return [
+        {
+            "id": entry["id"],
+            "label": entry["label"],
+            "title": entry["title"],
+            "url": entry["home_url"],
+        }
+        for entry in system_entries()
+    ]
 
 
 def header_links() -> list[dict[str, str]]:
@@ -525,6 +569,79 @@ def build_header_payload() -> dict[str, Any]:
     }
 
 
+def build_api_index_payload() -> dict[str, Any]:
+    def public_endpoint(path: str) -> str:
+        return f"{PUBLIC_HOME_URL.rstrip('/')}{path}"
+
+    systems = system_entries()
+    return {
+        "ok": True,
+        "generated_at": china_now_iso(),
+        "timezone": "Asia/Shanghai",
+        "name": "MyInvest API",
+        "description": "全系统 API 说明和入口。各子系统的 api_url 均为该子系统 API 总入口。",
+        "system": systems[0],
+        "systems": systems,
+        "subsystems": systems[1:],
+        "endpoints": [
+            {
+                "path": "/api",
+                "url": public_endpoint("/api"),
+                "method": "GET",
+                "description": "全系统 API 说明和入口。",
+            },
+            {
+                "path": "/api/config",
+                "url": public_endpoint("/api/config"),
+                "method": "GET",
+                "description": "首页聚合频道配置。",
+            },
+            {
+                "path": "/api/sources",
+                "url": public_endpoint("/api/sources"),
+                "method": "GET",
+                "description": "并发读取已接入首页聚合的子系统 /api/index 数据；支持 refresh=1 清缓存刷新。",
+            },
+            {
+                "path": "/api/sources/{source_id}",
+                "url": public_endpoint("/api/sources/{source_id}"),
+                "method": "GET",
+                "description": "读取单个首页聚合频道；source_id 可选 market/theme/shadow/leader/stock/position。",
+            },
+            {
+                "path": "/api/header",
+                "url": public_endpoint("/api/header"),
+                "method": "GET",
+                "description": "统一 Header 导航配置。",
+            },
+            {
+                "path": "/api/footer",
+                "url": public_endpoint("/api/footer"),
+                "method": "GET",
+                "description": "统一 Footer 配置，包含当前时间、上证指数和导航链接。",
+            },
+            {
+                "path": "/healthz",
+                "url": public_endpoint("/healthz"),
+                "method": "GET",
+                "description": "本系统健康检查。",
+            },
+        ],
+        "embeds": [
+            {
+                "path": "/header.js",
+                "url": public_endpoint("/header.js"),
+                "description": "统一 Header 嵌入脚本。",
+            },
+            {
+                "path": "/footer.js",
+                "url": public_endpoint("/footer.js"),
+                "description": "统一 Footer 嵌入脚本。",
+            },
+        ],
+    }
+
+
 class WebHubHandler(BaseHTTPRequestHandler):
     server_version = "MyInvestWebHub/1.0"
 
@@ -536,6 +653,9 @@ class WebHubHandler(BaseHTTPRequestHandler):
 
         if path == "/healthz":
             self.write_json({"ok": True, "generated_at": utc_now_iso()})
+            return
+        if path in {"/api", "/api/"}:
+            self.write_json(build_api_index_payload(), cors=True)
             return
         if path == "/api/config":
             self.write_json({"ok": True, "sources": public_sources()})

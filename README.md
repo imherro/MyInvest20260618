@@ -33,6 +33,16 @@ http://127.0.0.1:8888/
 python -m unittest discover -s tests -q
 ```
 
+## 系统 API 入口
+
+全系统 API 说明：
+
+```text
+https://invest.okbbc.com/api
+```
+
+`/api` 返回本系统接口、统一 Header/Footer 嵌入脚本，以及所有子系统的 `/api` 总入口。已接入首页聚合的频道还会额外给出对应的 `/api/index` 数据入口。
+
 ## 统一 Footer
 
 数据 API：

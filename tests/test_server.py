@@ -55,6 +55,27 @@ class ServerPayloadTests(unittest.TestCase):
             [item["id"] for item in payload["links"]],
         )
 
+    def test_api_index_payload_lists_system_api_entries(self):
+        payload = server.build_api_index_payload()
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual("https://invest.okbbc.com/api", payload["system"]["api_url"])
+        self.assertEqual(
+            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "position"],
+            [item["id"] for item in payload["systems"]],
+        )
+
+        systems_by_id = {item["id"]: item for item in payload["systems"]}
+        self.assertEqual("https://market.okbbc.com/api", systems_by_id["market"]["api_url"])
+        self.assertEqual("https://market.okbbc.com/api/index", systems_by_id["market"]["index_api_url"])
+        self.assertEqual("https://cycle.okbbc.com/api", systems_by_id["cycle"]["api_url"])
+        self.assertNotIn("index_api_url", systems_by_id["cycle"])
+
+        endpoint_paths = [item["path"] for item in payload["endpoints"]]
+        self.assertIn("/api", endpoint_paths)
+        self.assertIn("/api/header", endpoint_paths)
+        self.assertIn("/api/footer", endpoint_paths)
+
     def test_footer_payload_prefers_realtime_shanghai_index(self):
         def fake_quote():
             return {
