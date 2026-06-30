@@ -184,55 +184,62 @@ def source_system_entry(source_id: str, source: dict[str, str]) -> dict[str, str
 
 
 def system_entries() -> list[dict[str, str]]:
-    entries = [
-        self_system_entry(),
+    entries_by_id = {
+        "invest": self_system_entry(),
+        "cycle": external_system_entry(
+            "cycle",
+            label="周期",
+            title="周期",
+            home_url=CYCLE_HOME_URL,
+        ),
+        "ten": external_system_entry(
+            "ten",
+            label="十倍",
+            title="十倍",
+            home_url=TEN_HOME_URL,
+        ),
+        "etf": external_system_entry(
+            "etf",
+            label="ETF",
+            title="ETF研究",
+            home_url=ETF_HOME_URL,
+        ),
+        "picking": external_system_entry(
+            "picking",
+            label="选股",
+            title="选股",
+            home_url=PICKING_HOME_URL,
+        ),
+        "short": external_system_entry(
+            "short",
+            label="短线",
+            title="短线",
+            home_url=SHORT_HOME_URL,
+        ),
+    }
+    entries_by_id.update(
+        {
+            source_id: source_system_entry(source_id, source)
+            for source_id, source in SOURCES.items()
+        }
+    )
+    return [
+        entries_by_id[system_id]
+        for system_id in [
+            "invest",
+            "market",
+            "cycle",
+            "theme",
+            "leader",
+            "shadow",
+            "position",
+            "etf",
+            "stock",
+            "short",
+            "picking",
+            "ten",
+        ]
     ]
-    for source_id, source in SOURCES.items():
-        if source_id == "shadow":
-            entries.append(
-                external_system_entry(
-                    "cycle",
-                    label="周期",
-                    title="周期",
-                    home_url=CYCLE_HOME_URL,
-                )
-            )
-        if source_id == "stock":
-            entries.append(
-                external_system_entry(
-                    "ten",
-                    label="十倍",
-                    title="十倍",
-                    home_url=TEN_HOME_URL,
-                )
-            )
-            entries.append(
-                external_system_entry(
-                    "etf",
-                    label="ETF",
-                    title="ETF研究",
-                    home_url=ETF_HOME_URL,
-                )
-            )
-            entries.append(
-                external_system_entry(
-                    "picking",
-                    label="选股",
-                    title="选股",
-                    home_url=PICKING_HOME_URL,
-                )
-            )
-        if source_id == "position":
-            entries.append(
-                external_system_entry(
-                    "short",
-                    label="短线",
-                    title="短线",
-                    home_url=SHORT_HOME_URL,
-                )
-            )
-        entries.append(source_system_entry(source_id, source))
-    return entries
 
 
 def footer_links() -> list[dict[str, str]]:
