@@ -10,9 +10,10 @@
     { id: "etf", label: "ETF", title: "ETF研究", url: "https://etf.okbbc.com/" },
     { id: "picking", label: "选股", title: "选股", url: "https://picking.okbbc.com/" },
     { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
+    { id: "short", label: "短线", title: "短线", url: "https://short.okbbc.com/" },
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-header:v5";
+  const CACHE_KEY = "myinvest:unified-header:v6";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;

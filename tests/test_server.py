@@ -32,7 +32,7 @@ class ServerPayloadTests(unittest.TestCase):
         links = server.footer_links()
 
         self.assertEqual(
-            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "position"],
+            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "short", "position"],
             [item["id"] for item in links],
         )
         self.assertEqual("首页", links[0]["label"])
@@ -43,6 +43,7 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("https://etf.okbbc.com/", links[7]["url"])
         self.assertEqual("https://picking.okbbc.com/", links[8]["url"])
         self.assertEqual("https://stock.okbbc.com/", links[9]["url"])
+        self.assertEqual("https://short.okbbc.com/", links[10]["url"])
 
     def test_header_payload_uses_shared_navigation_links(self):
         payload = server.build_header_payload()
@@ -51,7 +52,7 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("MyInvest", payload["brand"]["label"])
         self.assertEqual("https://invest.okbbc.com/", payload["brand"]["url"])
         self.assertEqual(
-            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "position"],
+            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "short", "position"],
             [item["id"] for item in payload["links"]],
         )
 
@@ -61,7 +62,7 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual("https://invest.okbbc.com/api", payload["system"]["api_url"])
         self.assertEqual(
-            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "position"],
+            ["invest", "market", "theme", "cycle", "shadow", "leader", "ten", "etf", "picking", "stock", "short", "position"],
             [item["id"] for item in payload["systems"]],
         )
 
@@ -70,6 +71,8 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("https://market.okbbc.com/api/index", systems_by_id["market"]["index_api_url"])
         self.assertEqual("https://cycle.okbbc.com/api", systems_by_id["cycle"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["cycle"])
+        self.assertEqual("https://short.okbbc.com/api", systems_by_id["short"]["api_url"])
+        self.assertNotIn("index_api_url", systems_by_id["short"])
 
         endpoint_paths = [item["path"] for item in payload["endpoints"]]
         self.assertIn("/api", endpoint_paths)

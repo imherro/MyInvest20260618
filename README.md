@@ -64,7 +64,7 @@ https://invest.okbbc.com/api/footer
 <script src="https://invest.okbbc.com/footer.js" defer></script>
 ```
 
-Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页、周期、十倍、ETF、选股和各子频道链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；首页、周期、十倍、ETF、选股和子频道链接仍在当前页打开。
+Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页、周期、十倍、ETF、选股、短线和各子频道链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；首页、周期、十倍、ETF、选股、短线和子频道链接仍在当前页打开。
 
 ## 统一 Header
 
@@ -87,4 +87,4 @@ https://invest.okbbc.com/api/header
 <script src="https://invest.okbbc.com/header.js" defer></script>
 ```
 
-Header 显示 MyInvest 品牌，以及首页、市场、主线、周期、影子、龙头、十倍、ETF、选股、个股、操作导航链接；所有导航链接在当前页打开。
+Header 显示 MyInvest 品牌，以及首页、市场、主线、周期、影子、龙头、十倍、ETF、选股、个股、短线、操作导航链接；所有导航链接在当前页打开。

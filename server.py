@@ -30,6 +30,7 @@ CYCLE_HOME_URL = "https://cycle.okbbc.com/"
 TEN_HOME_URL = "https://ten.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
 PICKING_HOME_URL = "https://picking.okbbc.com/"
+SHORT_HOME_URL = "https://short.okbbc.com/"
 SHANGHAI_REALTIME_QUOTE_URL = (
     "https://push2.eastmoney.com/api/qt/stock/get"
     "?secid=1.000001&fields=f43,f57,f58,f60,f169,f170,f86"
@@ -219,6 +220,15 @@ def system_entries() -> list[dict[str, str]]:
                     label="选股",
                     title="选股",
                     home_url=PICKING_HOME_URL,
+                )
+            )
+        if source_id == "position":
+            entries.append(
+                external_system_entry(
+                    "short",
+                    label="短线",
+                    title="短线",
+                    home_url=SHORT_HOME_URL,
                 )
             )
         entries.append(source_system_entry(source_id, source))
