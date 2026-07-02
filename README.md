@@ -33,6 +33,22 @@ http://127.0.0.1:8888/
 python -m unittest discover -s tests -q
 ```
 
+## Web 服务巡检
+
+本项目提供巡检脚本，会检查首页和子系统本地 Web 服务；如果端口没有响应，会按已知启动命令拉起服务。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1
+```
+
+只检查、不启动：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1 -NoStart
+```
+
+巡检日志写入 `temp/web_service_monitor/`。当前覆盖：首页、市场、周期、主线、龙头、影子、操作、ETF、个股、短线、选股、十倍。
+
 ## 系统 API 入口
 
 全系统 API 说明：
