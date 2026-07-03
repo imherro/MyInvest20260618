@@ -27,6 +27,7 @@ DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
 CYCLE_HOME_URL = "https://cycle.okbbc.com/"
+STRATEGY_INDEX_HOME_URL = "https://strategyindex.okbbc.com/"
 TEN_HOME_URL = "https://ten.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
 PICKING_HOME_URL = "https://picking.okbbc.com/"
@@ -193,6 +194,12 @@ def system_entries() -> list[dict[str, str]]:
             title="周期",
             home_url=CYCLE_HOME_URL,
         ),
+        "strategyindex": external_system_entry(
+            "strategyindex",
+            label="策略",
+            title="策略",
+            home_url=STRATEGY_INDEX_HOME_URL,
+        ),
         "ten": external_system_entry(
             "ten",
             label="十倍",
@@ -236,6 +243,7 @@ def system_entries() -> list[dict[str, str]]:
             "invest",
             "market",
             "cycle",
+            "strategyindex",
             "theme",
             "leader",
             "shadow",
