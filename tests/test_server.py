@@ -15,6 +15,7 @@ class ServerPayloadTests(unittest.TestCase):
         "position",
         "etf",
         "stock",
+        "intraday",
         "short",
         "picking",
         "ten",
@@ -54,9 +55,10 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("https://position.okbbc.com/", links[6]["url"])
         self.assertEqual("https://etf.okbbc.com/", links[7]["url"])
         self.assertEqual("https://stock.okbbc.com/", links[8]["url"])
-        self.assertEqual("https://short.okbbc.com/", links[9]["url"])
-        self.assertEqual("https://picking.okbbc.com/", links[10]["url"])
-        self.assertEqual("https://ten.okbbc.com/", links[11]["url"])
+        self.assertEqual("https://intraday.okbbc.com/", links[9]["url"])
+        self.assertEqual("https://short.okbbc.com/", links[10]["url"])
+        self.assertEqual("https://picking.okbbc.com/", links[11]["url"])
+        self.assertEqual("https://ten.okbbc.com/", links[12]["url"])
 
     def test_header_payload_uses_shared_navigation_links(self):
         payload = server.build_header_payload()
@@ -78,6 +80,8 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual("https://market.okbbc.com/api/index", systems_by_id["market"]["index_api_url"])
         self.assertEqual("https://cycle.okbbc.com/api", systems_by_id["cycle"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["cycle"])
+        self.assertEqual("https://intraday.okbbc.com/api", systems_by_id["intraday"]["api_url"])
+        self.assertNotIn("index_api_url", systems_by_id["intraday"])
         self.assertEqual("https://short.okbbc.com/api", systems_by_id["short"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["short"])
 

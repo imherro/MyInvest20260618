@@ -31,6 +31,7 @@ TEN_HOME_URL = "https://ten.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
 PICKING_HOME_URL = "https://picking.okbbc.com/"
 SHORT_HOME_URL = "https://short.okbbc.com/"
+INTRADAY_HOME_URL = "https://intraday.okbbc.com/"
 SHANGHAI_REALTIME_QUOTE_URL = (
     "https://push2.eastmoney.com/api/qt/stock/get"
     "?secid=1.000001&fields=f43,f57,f58,f60,f169,f170,f86"
@@ -216,6 +217,12 @@ def system_entries() -> list[dict[str, str]]:
             title="短线",
             home_url=SHORT_HOME_URL,
         ),
+        "intraday": external_system_entry(
+            "intraday",
+            label="看盘",
+            title="看盘",
+            home_url=INTRADAY_HOME_URL,
+        ),
     }
     entries_by_id.update(
         {
@@ -235,6 +242,7 @@ def system_entries() -> list[dict[str, str]]:
             "position",
             "etf",
             "stock",
+            "intraday",
             "short",
             "picking",
             "ten",
