@@ -47,7 +47,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1 -NoStart
 ```
 
-巡检日志写入 `temp/web_service_monitor/`。当前覆盖：首页、市场、周期、策略、主线、龙头、影子、操作、ETF、个股、看盘、短线、选股、十倍。
+巡检日志写入 `temp/web_service_monitor/`。当前覆盖：首页、市场、主线、龙头、ETF、个股、影子、看盘、操作、周期、策略、短线、选股、十倍。
 
 ## 系统 API 入口
 
@@ -80,7 +80,7 @@ https://invest.okbbc.com/api/footer
 <script src="https://invest.okbbc.com/footer.js" defer></script>
 ```
 
-Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页、市场、周期、策略、主线、龙头、影子、操作、ETF、个股、看盘、短线、选股、十倍链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；导航链接仍在当前页打开。
+Footer 显示当前时间、上证指数实时点位、涨跌额、涨跌幅，以及首页、市场、主线、龙头、ETF、个股、影子、看盘、操作、周期、策略、短线、选股、十倍链接。上证指数链接到 `https://xueqiu.com/S/SH000001` 并新窗口打开；导航链接仍在当前页打开。
 
 ## 统一 Header
 
@@ -103,4 +103,4 @@ https://invest.okbbc.com/api/header
 <script src="https://invest.okbbc.com/header.js" defer></script>
 ```
 
-Header 显示 MyInvest 品牌，以及首页、市场、周期、策略、主线、龙头、影子、操作、ETF、个股、看盘、短线、选股、十倍导航链接；所有导航链接在当前页打开。
+Header 显示 MyInvest 品牌，以及首页、市场、主线、龙头、ETF、个股、影子、看盘、操作、周期、策略、短线、选股、十倍导航链接；所有导航链接在当前页打开。

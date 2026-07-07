@@ -8,15 +8,15 @@ class ServerPayloadTests(unittest.TestCase):
     expected_system_ids = [
         "invest",
         "market",
-        "cycle",
-        "strategyindex",
         "theme",
         "leader",
-        "shadow",
-        "position",
         "etf",
         "stock",
+        "shadow",
         "intraday",
+        "position",
+        "cycle",
+        "strategyindex",
         "short",
         "picking",
         "ten",
@@ -51,13 +51,15 @@ class ServerPayloadTests(unittest.TestCase):
         self.assertEqual(self.expected_system_ids, [item["id"] for item in links])
         self.assertEqual("首页", links[0]["label"])
         self.assertEqual("https://invest.okbbc.com/", links[0]["url"])
-        self.assertEqual("https://cycle.okbbc.com/", links[2]["url"])
-        self.assertEqual("https://strategyindex.okbbc.com/", links[3]["url"])
-        self.assertEqual("https://leader.okbbc.com/", links[5]["url"])
-        self.assertEqual("https://position.okbbc.com/", links[7]["url"])
-        self.assertEqual("https://etf.okbbc.com/", links[8]["url"])
-        self.assertEqual("https://stock.okbbc.com/", links[9]["url"])
-        self.assertEqual("https://intraday.okbbc.com/", links[10]["url"])
+        self.assertEqual("https://theme.okbbc.com/", links[2]["url"])
+        self.assertEqual("https://leader.okbbc.com/", links[3]["url"])
+        self.assertEqual("https://etf.okbbc.com/", links[4]["url"])
+        self.assertEqual("https://stock.okbbc.com/", links[5]["url"])
+        self.assertEqual("https://shadow.okbbc.com/", links[6]["url"])
+        self.assertEqual("https://intraday.okbbc.com/", links[7]["url"])
+        self.assertEqual("https://position.okbbc.com/", links[8]["url"])
+        self.assertEqual("https://cycle.okbbc.com/", links[9]["url"])
+        self.assertEqual("https://strategyindex.okbbc.com/", links[10]["url"])
         self.assertEqual("https://short.okbbc.com/", links[11]["url"])
         self.assertEqual("https://picking.okbbc.com/", links[12]["url"])
         self.assertEqual("https://ten.okbbc.com/", links[13]["url"])
