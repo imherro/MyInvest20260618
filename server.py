@@ -28,6 +28,7 @@ PUBLIC_HOME_URL = "https://invest.okbbc.com/"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
 CYCLE_HOME_URL = "https://cycle.okbbc.com/"
 STRATEGY_INDEX_HOME_URL = "https://strategyindex.okbbc.com/"
+TAA_HOME_URL = "https://taa.okbbc.com/"
 TEN_HOME_URL = "https://ten.okbbc.com/"
 TEST_HOME_URL = "https://test.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
@@ -213,6 +214,12 @@ def system_entries() -> list[dict[str, str]]:
             title="测试",
             home_url=TEST_HOME_URL,
         ),
+        "taa": external_system_entry(
+            "taa",
+            label="逆向",
+            title="逆向",
+            home_url=TAA_HOME_URL,
+        ),
         "etf": external_system_entry(
             "etf",
             label="ETF",
@@ -258,6 +265,7 @@ def system_entries() -> list[dict[str, str]]:
             "position",
             "cycle",
             "strategyindex",
+            "taa",
             "short",
             "picking",
             "ten",

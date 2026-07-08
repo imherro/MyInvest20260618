@@ -11,12 +11,13 @@
     { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
     { id: "cycle", label: "周期", title: "周期", url: "https://cycle.okbbc.com/" },
     { id: "strategyindex", label: "策略", title: "策略", url: "https://strategyindex.okbbc.com/" },
+    { id: "taa", label: "逆向", title: "逆向", url: "https://taa.okbbc.com/" },
     { id: "short", label: "短线", title: "短线", url: "https://short.okbbc.com/" },
     { id: "picking", label: "选股", title: "选股", url: "https://picking.okbbc.com/" },
     { id: "ten", label: "十倍", title: "十倍", url: "https://ten.okbbc.com/" },
     { id: "test", label: "测试", title: "测试", url: "https://test.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-footer:v16";
+  const CACHE_KEY = "myinvest:unified-footer:v17";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;

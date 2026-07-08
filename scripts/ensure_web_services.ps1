@@ -39,6 +39,7 @@ $Services = @(
     (New-Service "market" (ProjectPath "MyInvestMarket") 8011 "/api" @("scripts\serve_market_web.py")),
     (New-Service "cycle" (ProjectPath "MyInvestCycle") 8021 "/api" @("-m", "web.app")),
     (New-Service "strategyindex" (ProjectPath "MyInvestStrategyIndex") 8023 "/health.json" @("-m", "myinvest_strategy_index.webapp", "--host", "127.0.0.1", "--port", "8023")),
+    (New-Service "taa" (ProjectPath "MyInvestTAA") 8025 "/api/assets" @("-m", "backend.main")),
     (New-Service "theme" (ProjectPath "MyInvestTheme") 8012 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8012")),
     (New-Service "leader" (ProjectPath "MyInvestLeader") 8014 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8014")),
     (New-Service "shadow" (ProjectPath "MyInvestShadow") 8013 "/health" @("scripts\run_web.py")),
