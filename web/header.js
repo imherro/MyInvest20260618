@@ -14,8 +14,9 @@
     { id: "short", label: "短线", title: "短线", url: "https://short.okbbc.com/" },
     { id: "picking", label: "选股", title: "选股", url: "https://picking.okbbc.com/" },
     { id: "ten", label: "十倍", title: "十倍", url: "https://ten.okbbc.com/" },
+    { id: "test", label: "测试", title: "测试", url: "https://test.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-header:v10";
+  const CACHE_KEY = "myinvest:unified-header:v11";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;

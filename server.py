@@ -29,6 +29,7 @@ SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
 CYCLE_HOME_URL = "https://cycle.okbbc.com/"
 STRATEGY_INDEX_HOME_URL = "https://strategyindex.okbbc.com/"
 TEN_HOME_URL = "https://ten.okbbc.com/"
+TEST_HOME_URL = "https://test.okbbc.com/"
 ETF_HOME_URL = "https://etf.okbbc.com/"
 PICKING_HOME_URL = "https://picking.okbbc.com/"
 SHORT_HOME_URL = "https://short.okbbc.com/"
@@ -206,6 +207,12 @@ def system_entries() -> list[dict[str, str]]:
             title="十倍",
             home_url=TEN_HOME_URL,
         ),
+        "test": external_system_entry(
+            "test",
+            label="测试",
+            title="测试",
+            home_url=TEST_HOME_URL,
+        ),
         "etf": external_system_entry(
             "etf",
             label="ETF",
@@ -254,6 +261,7 @@ def system_entries() -> list[dict[str, str]]:
             "short",
             "picking",
             "ten",
+            "test",
         ]
     ]
 
