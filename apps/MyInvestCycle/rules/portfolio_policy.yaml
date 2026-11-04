@@ -1,0 +1,31 @@
+bull:
+  base_exposure: 1.00
+  max_exposure: 1.00
+  min_cash: 0.00
+  strategy_allocation:
+    trend: 0.70
+    breakout: 0.30
+
+range:
+  base_exposure: 0.60
+  max_exposure: 0.60
+  min_cash: 0.40
+  strategy_allocation:
+    mean_reversion: 0.80
+    trend: 0.20
+
+bear:
+  base_exposure: 0.20
+  max_exposure: 0.20
+  min_cash: 0.80
+  strategy_allocation:
+    defensive: 1.00
+
+transition:
+  base_exposure: 0.30
+  max_exposure: 0.30
+  min_cash: 0.70
+  strategy_allocation:
+    defensive: 0.50
+    mean_reversion: 0.30
+    trend: 0.20

@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyInvestShadow</title>
+    <link rel="stylesheet" href="/static/app.css?v=20260701-allocation-weight-chart" />
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+
+    <header class="topbar">
+      <div>
+        <h1>MyInvestShadow</h1>
+        <p>基于市场结果与主线结果的影子账户</p>
+      </div>
+      <button id="refreshBtn" type="button" title="拉取最新研究结果并生成影子仓位">刷新调仓</button>
+    </header>
+
+    <main>
+      <section class="metrics" aria-label="账户概览">
+        <div class="metric">
+          <span>净值</span>
+          <strong id="navValue">--</strong>
+        </div>
+        <div class="metric">
+          <span>主动仓位</span>
+          <strong id="riskBudget">--</strong>
+        </div>
+        <div class="metric">
+          <span>防御仓位</span>
+          <strong id="cashRatio">--</strong>
+        </div>
+        <div class="metric">
+          <span>基准收盘日</span>
+          <strong id="basisDate">--</strong>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="section-head">
+          <h2>资金净值曲线</h2>
+          <span id="marketRegime">--</span>
+        </div>
+        <div id="navChart" class="chart" role="img" aria-label="影子账户净值曲线"></div>
+      </section>
+
+      <section class="band">
+        <div class="section-head">
+          <h2>仓位结构</h2>
+          <span>市场建议 / 影子落地</span>
+        </div>
+        <div class="sleeve-compare-grid">
+          <div>
+            <div class="subsection-head">市场建议结构</div>
+            <div id="marketSleeveSummary" class="sleeve-summary"></div>
+          </div>
+          <div>
+            <div class="subsection-head">影子落地结构</div>
+            <div id="sleeveSummary" class="sleeve-summary"></div>
+          </div>
+        </div>
+        <div id="executionNotice" class="execution-notice"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>市场约束</h2>
+          <span id="constraintCount">--</span>
+        </div>
+        <div id="marketConstraints" class="constraint-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>ETF评分/估值门禁</h2>
+          <span id="gateCount">--</span>
+        </div>
+        <div id="gateSummary" class="gate-summary"></div>
+        <div class="table-wrap gate-table">
+          <table>
+            <thead>
+              <tr>
+                <th>标识</th>
+                <th>名称</th>
+                <th>仓位层</th>
+                <th>等级</th>
+                <th>分数</th>
+                <th>系数</th>
+                <th>落地</th>
+                <th>原因</th>
+              </tr>
+            </thead>
+            <tbody id="gateRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>目标仓位变化</h2>
+          <span id="allocationCurveCount">--</span>
+        </div>
+        <div
+          id="allocationWeightChart"
+          class="chart allocation-weight-chart"
+          role="img"
+          aria-label="影子目标仓位百分比随时间变化，上证指数作为背景"
+        ></div>
+        <div id="allocationWeightLegend" class="chart-legend"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2 class="heading-with-help">
+            影子目标仓位
+            <span class="help-popover" tabindex="0" aria-label="建仓调仓原则">
+              <span class="help-icon" aria-hidden="true">i</span>
+              <span class="help-panel" role="tooltip">
+                <strong>建仓调仓原则</strong>
+                <span>市场研究先定总主动仓位；主线研究只决定方向，不考虑真实持仓。</span>
+                <span>资金阶段决定工具：β主导期 ETF 优先，α收敛期龙头优先，情绪博弈期小仓或空仓，退潮期回防御。</span>
+                <span>仓位分为核心、主线、主题、防御；同方向不重复落地，未过门禁或数据不足的预算归防御。</span>
+                <span>每天收盘后只在上游基准日一致，且阶段、门禁或目标权重有实质变化时调仓并记录历史。</span>
+              </span>
+            </span>
+          </h2>
+          <span id="allocationCount">--</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th><button class="sort-button" type="button" data-allocation-sort="code">标识<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="name">名称<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="sleeve">仓位层<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="theme">主题<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="target">目标<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="drift">调整<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="pct">日涨跌<span class="sort-indicator" aria-hidden="true"></span></button></th>
+                <th><button class="sort-button" type="button" data-allocation-sort="gate">门禁<span class="sort-indicator" aria-hidden="true"></span></button></th>
+              </tr>
+            </thead>
+            <tbody id="allocationRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>调仓历史</h2>
+          <span id="rebalanceCount">--</span>
+        </div>
+        <div class="table-wrap rebalance-table">
+          <table>
+            <thead>
+              <tr>
+                <th>基准日</th>
+                <th>动作</th>
+                <th>标识</th>
+                <th>名称</th>
+                <th>仓位层</th>
+                <th>上次</th>
+                <th>当前</th>
+                <th>变化</th>
+              </tr>
+            </thead>
+            <tbody id="rebalanceRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="section-head">
+          <h2>数据状态</h2>
+          <span id="statusText">--</span>
+        </div>
+        <div id="policyStatus" class="status-list"></div>
+        <div id="sourceStatus" class="status-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>接口说明</h2>
+          <span id="apiTotal">--</span>
+        </div>
+        <div id="apiDirectory" class="api-directory"></div>
+      </section>
+    </main>
+
+    <div data-myinvest-footer></div>
+    <div id="toast" class="toast" hidden></div>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]" defer></script>
+    <script src="/static/app.js?v=20260701-allocation-weight-chart"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]" defer></script>
+  </body>
+</html>

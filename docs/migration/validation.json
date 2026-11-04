@@ -1,0 +1,247 @@
+{
+  "verified_at": "2026-11-04T06:14:42.114472+00:00",
+  "python": "3.14.2",
+  "scope": "local isolated source migration acceptance; not production cutover or hosted CI",
+  "snapshot_sha256": "30936067b018c502fcbb008ee03a63c62e3c57bf42721ab33efcd5b66232f45e",
+  "suites": {
+    "market": {
+      "exit_code": 0,
+      "seconds": 335.44,
+      "junit_cases_including_subtests": 503,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 259,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "theme": {
+      "exit_code": 0,
+      "seconds": 113.68,
+      "junit_cases_including_subtests": 309,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 333,
+      "log_directory": "temp/monorepo-tests/run-1lim2k3b"
+    },
+    "leader": {
+      "exit_code": 0,
+      "seconds": 5.15,
+      "junit_cases_including_subtests": 34,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 160,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "etf": {
+      "exit_code": 0,
+      "seconds": 2.53,
+      "junit_cases_including_subtests": 107,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 0,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "stock": {
+      "exit_code": 0,
+      "seconds": 2.2,
+      "junit_cases_including_subtests": 48,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 2,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "shadow": {
+      "exit_code": 0,
+      "seconds": 2.45,
+      "junit_cases_including_subtests": 53,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 0,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "intraday": {
+      "exit_code": 0,
+      "seconds": 0.91,
+      "junit_cases_including_subtests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 0,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "position": {
+      "exit_code": 0,
+      "seconds": 1.07,
+      "junit_cases_including_subtests": 23,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 14,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "cycle": {
+      "exit_code": 0,
+      "seconds": 386.85,
+      "junit_cases_including_subtests": 138,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 240,
+      "log_directory": "temp/monorepo-tests/run-1gigiw45"
+    },
+    "strategyindex": {
+      "exit_code": 0,
+      "seconds": 5.27,
+      "junit_cases_including_subtests": 44,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 4,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "short": {
+      "exit_code": 0,
+      "seconds": 5.43,
+      "junit_cases_including_subtests": 52,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 0,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "picking": {
+      "exit_code": 0,
+      "seconds": 8.05,
+      "junit_cases_including_subtests": 11,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 21,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    },
+    "ten": {
+      "exit_code": 0,
+      "seconds": 16.28,
+      "junit_cases_including_subtests": 48,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "fixture_files_copied": 0,
+      "log_directory": "temp/monorepo-tests/run-uvf0lfru"
+    }
+  },
+  "smoke": [
+    {
+      "system": "market",
+      "port": 4137,
+      "ok": true,
+      "status": 200,
+      "bytes": 14121
+    },
+    {
+      "system": "theme",
+      "port": 2298,
+      "ok": true,
+      "status": 200,
+      "bytes": 14820
+    },
+    {
+      "system": "leader",
+      "port": 2303,
+      "ok": true,
+      "status": 200,
+      "bytes": 5898
+    },
+    {
+      "system": "etf",
+      "port": 2359,
+      "ok": true,
+      "status": 200,
+      "bytes": 17351
+    },
+    {
+      "system": "stock",
+      "port": 9161,
+      "ok": true,
+      "status": 200,
+      "bytes": 8748
+    },
+    {
+      "system": "shadow",
+      "port": 9185,
+      "ok": true,
+      "status": 200,
+      "bytes": 64
+    },
+    {
+      "system": "intraday",
+      "port": 13127,
+      "ok": true,
+      "status": 200,
+      "bytes": 1465
+    },
+    {
+      "system": "position",
+      "port": 8707,
+      "ok": true,
+      "status": 200,
+      "bytes": 16
+    },
+    {
+      "system": "cycle",
+      "port": 8738,
+      "ok": true,
+      "status": 200,
+      "bytes": 76287
+    },
+    {
+      "system": "strategyindex",
+      "port": 13993,
+      "ok": true,
+      "status": 200,
+      "bytes": 71
+    },
+    {
+      "system": "short",
+      "port": 8119,
+      "ok": true,
+      "status": 200,
+      "bytes": 15106
+    },
+    {
+      "system": "picking",
+      "port": 11748,
+      "ok": true,
+      "status": 200,
+      "bytes": 6486
+    },
+    {
+      "system": "ten",
+      "port": 12996,
+      "ok": true,
+      "status": 200,
+      "bytes": 6792
+    }
+  ],
+  "root_unittest": "----------------------------------------------------------------------\nRan 21 tests in 0.659s\n\nOK",
+  "source_audit": {
+    "original_source_changes": [],
+    "missing_imports": [],
+    "adaptations": [
+      "apps/MyInvestMarket/scripts/run_post_close_update.py",
+      "apps/MyInvestMarket/tests/test_contrarian_beta_overlay_audit.py",
+      "apps/MyInvestTheme/scripts/daily_mainline_update.py",
+      "apps/MyInvestTheme/web/tests/test_daily_mainline_update.py",
+      "apps/MyInvestLeader/AGENTS.md",
+      "apps/MyInvestETF/myinvestetf/leader_index.py",
+      "apps/MyInvestStock/myinveststock/leader_index.py"
+    ],
+    "credential_match_files": []
+  },
+  "production_cutover_performed": false
+}

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>后市展望</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260708-regime-copy-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="cycle-track">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">Outlook</p>
+          <h1>后市展望</h1>
+        </div>
+        <a class="back-link" href="/">返回主页</a>
+      </div>
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+      <section class="detail-two-column">
+        <article class="detail-chart-card">
+          <div class="panel-heading">
+            <h2>上证收盘与周期状态</h2>
+            <span class="panel-kicker">cycle track</span>
+          </div>
+          <div class="chart-box xlarge" id="cycleTrackChart"></div>
+        </article>
+        <article class="chart-panel">
+          <div class="panel-heading">
+            <h2>概率展望</h2>
+          </div>
+          <div class="result-row"><span>牛市延续</span><strong id="probContinue">--</strong></div>
+          <div class="result-row"><span>震荡整理</span><strong id="probRange">--</strong></div>
+          <div class="result-row"><span>转弱确认</span><strong id="probWeaken">--</strong></div>
+          <p class="result-note warning-note" id="forecastCaveat">--</p>
+          <p class="result-note" id="forecastConfidenceReason">--</p>
+        </article>
+      </section>
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>事实与论证</h2>
+        </div>
+        <div class="explanation-summary" id="explanationSummary">--</div>
+        <div class="explanation-grid">
+          <div>
+            <h3>事实数据</h3>
+            <ul id="explanationFacts"></ul>
+          </div>
+          <div>
+            <h3>论证过程</h3>
+            <ul id="explanationMethod"></ul>
+          </div>
+          <div>
+            <h3>结果解释</h3>
+            <p id="explanationResult">--</p>
+          </div>
+        </div>
+        <p class="result-note" id="pageError"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260708-regime-copy-1"></script>
+    <script src="/static/detail_pages.js?v=20260708-regime-copy-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-short-term"
+version = "0.1.0"
+description = "Short-term trading signal system with multi-source market data."
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "requests>=2.31",
+  "python-dotenv>=1.0",
+  "tushare>=1.4",
+  "baostock>=0.9.1",
+  "yfinance>=0.2",
+  "fredapi>=0.5",
+]
+
+[project.scripts]
+shortterm = "shortterm_trader.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+

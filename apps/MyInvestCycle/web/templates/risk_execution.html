@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>风控执行</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260629-channels-1" />
+  </head>
+  <body data-page="risk-execution" data-results-page="1">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Risk Execution</p>
+          <h1>风控执行</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+          <a class="back-link" href="/">返回首页</a>
+        </div>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a href="/cycle-track">
+          <span>Outlook</span>
+          <strong>后市展望</strong>
+        </a>
+        <a href="/cycle-observation">
+          <span>History</span>
+          <strong>历史回顾</strong>
+        </a>
+        <a href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/validation">
+          <span>Validation</span>
+          <strong>验证归因</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="results-overview" id="execution-channel" aria-live="polite">
+        <div class="dashboard-section-heading">
+          <div>
+            <span>Risk Execution</span>
+            <h2>风控执行</h2>
+          </div>
+          <p>把风险评分、仓位、策略路由、执行模拟和系统边界放在一起。</p>
+        </div>
+
+        <article class="chart-panel result-panel risk-result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="汇总当前风险等级、建议仓位和主要风控动作，是执行频道最先看的摘要。">风险总览</h2>
+            <span class="panel-kicker" id="resultsAsOf">--</span>
+          </div>
+          <div class="risk-headline">
+            <div>
+              <span>风险等级</span>
+              <strong id="riskLevel">--</strong>
+            </div>
+            <div>
+              <span>建议仓位</span>
+              <strong id="recommendedExposure">--</strong>
+            </div>
+            <div>
+              <span>执行动作</span>
+              <strong id="riskAction">--</strong>
+            </div>
+          </div>
+          <div class="risk-detail">
+            <div class="result-row">
+              <span>风险评分</span>
+              <strong id="riskScore">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略模式</span>
+              <strong id="strategyMode">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风控提示</span>
+              <strong id="riskAlert">--</strong>
+            </div>
+          </div>
+          <div class="component-list" id="riskComponents"></div>
+        </article>
+
+        <article class="chart-panel result-panel portfolio-result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把系统建议的总仓位、现金比例和策略分配拆开，检查仓位是否符合风险约束。">组合配置</h2>
+            <span class="panel-kicker">R2.1</span>
+          </div>
+          <div class="portfolio-headline">
+            <div>
+              <span>总仓位</span>
+              <strong id="portfolioExposure">--</strong>
+            </div>
+            <div>
+              <span>现金比例</span>
+              <strong id="portfolioCash">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>约束状态</span>
+            <strong id="portfolioConstraint">--</strong>
+          </div>
+          <div class="allocation-list" id="strategyAllocation"></div>
+          <p class="result-note" id="portfolioConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把宏观、结构、主题风险、风格偏好和 V3.5.7 增量结论转成定性 Beta 风险预算约束；不是 ETF 权重、仓位或交易信号。">Beta 风险预算约束</h2>
+            <span class="panel-kicker">V4.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>策略状态</span>
+              <strong id="allocationPolicyState">--</strong>
+            </div>
+            <div class="result-row">
+              <span>成长上限</span>
+              <strong id="allocationPolicyGrowth">--</strong>
+            </div>
+            <div class="result-row">
+              <span>中小盘上限</span>
+              <strong id="allocationPolicySmallCap">--</strong>
+            </div>
+            <div class="result-row">
+              <span>防守下限</span>
+              <strong id="allocationPolicyDefensive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>单风格上限</span>
+              <strong id="allocationPolicySingleStyle">--</strong>
+            </div>
+            <div class="result-row">
+              <span>进攻 Beta 上限</span>
+              <strong id="allocationPolicyOffensive">--</strong>
+            </div>
+          </div>
+          <div class="route-pill-list" id="allocationPolicyControls"></div>
+          <p class="result-note" id="allocationPolicyConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把市场拆成机会状态和风险状态两个轴：机会看宏观修复、结构牛和主线持续，风险看拥挤、涨幅延伸、宽度不足和集中度；只做解释，不输出仓位、ETF 或交易。">机会-风险二维状态</h2>
+            <span class="panel-kicker">V4.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>机会状态</span>
+              <strong id="opportunityRiskOpportunity">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险状态</span>
+              <strong id="opportunityRiskRisk">--</strong>
+            </div>
+            <div class="result-row">
+              <span>组合状态</span>
+              <strong id="opportunityRiskCombined">--</strong>
+            </div>
+            <div class="result-row">
+              <span>历史重放</span>
+              <strong id="opportunityRiskHistory">--</strong>
+            </div>
+          </div>
+          <div class="route-pill-list" id="opportunityRiskEvidence"></div>
+          <p class="result-note" id="opportunityRiskConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把 V4.3 的机会状态和风险状态映射为定性政策模式，例如参与、选择性参与、拥挤控制或保护资本；只输出研究约束，不输出仓位、ETF、权重或交易。">机会-风险政策模式</h2>
+            <span class="panel-kicker">V4.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>政策模式</span>
+              <strong id="opportunityRiskPolicyMode">--</strong>
+            </div>
+            <div class="result-row">
+              <span>允许动作</span>
+              <strong id="opportunityRiskPolicyAllowed">--</strong>
+            </div>
+            <div class="result-row">
+              <span>禁止动作</span>
+              <strong id="opportunityRiskPolicyBlocked">--</strong>
+            </div>
+            <div class="result-row">
+              <span>历史重放</span>
+              <strong id="opportunityRiskPolicyHistory">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="opportunityRiskPolicyDistribution"></div>
+          <div class="duration-list" id="opportunityRiskPolicyPeriods"></div>
+          <p class="result-note" id="opportunityRiskPolicyConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="在机会和风险之外新增市场阶段第三维：Early、Expansion、Rotation、Late、Contraction。用于解释同样拥挤在不同阶段的含义，不输出仓位、ETF、权重或交易。">市场阶段第三维</h2>
+            <span class="panel-kicker">V4.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>当前阶段</span>
+              <strong id="marketPhaseCurrent">--</strong>
+            </div>
+            <div class="result-row">
+              <span>历史重放</span>
+              <strong id="marketPhaseReplay">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险区分</span>
+              <strong id="marketPhaseRiskSpread">--</strong>
+            </div>
+            <div class="result-row">
+              <span>验证读数</span>
+              <strong id="marketPhaseValidationRead">--</strong>
+            </div>
+          </div>
+          <div class="route-pill-list" id="marketPhaseEvidence"></div>
+          <div class="alpha-source-list" id="marketPhaseDistribution"></div>
+          <p class="result-note" id="marketPhaseConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel strategy-route-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="显示当前允许启用哪些策略、禁用哪些策略，以及资金在策略之间如何分配。">策略路由</h2>
+            <span class="panel-kicker">R2.2</span>
+          </div>
+          <div class="route-summary">
+            <div>
+              <span>启用策略</span>
+              <strong id="routeEnabledCount">--</strong>
+            </div>
+            <div>
+              <span>禁用策略</span>
+              <strong id="routeDisabledCount">--</strong>
+            </div>
+          </div>
+          <div class="route-pill-list" id="routeEnabledList"></div>
+          <div class="route-budget-list" id="routeBudgetList"></div>
+          <div class="result-row">
+            <span>执行状态</span>
+            <strong id="routeExecutionStatus">--</strong>
+          </div>
+          <p class="result-note" id="routeConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel execution-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="只展示模拟执行意图和模拟指令，用来检查系统会如何调整仓位，不会下真实订单。">执行模拟</h2>
+            <span class="panel-kicker">R3.1</span>
+          </div>
+          <div class="execution-headline">
+            <div>
+              <span>执行模式</span>
+              <strong id="executionMode">--</strong>
+            </div>
+            <div>
+              <span>模拟指令</span>
+              <strong id="executionOrderCount">--</strong>
+            </div>
+          </div>
+          <div class="action-list">
+            <div>
+              <span>允许动作</span>
+              <p id="allowedActions">--</p>
+            </div>
+            <div>
+              <span>禁止动作</span>
+              <p id="forbiddenActions">--</p>
+            </div>
+          </div>
+          <div class="simulated-order-list" id="simulatedOrders"></div>
+          <p class="result-note" id="executionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel system-freeze-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="检查系统是否保持只读、模拟、无真实交易、无券商连接等边界。">系统冻结</h2>
+            <span class="panel-kicker">FINAL</span>
+          </div>
+          <div class="system-headline">
+            <div>
+              <span>状态</span>
+              <strong id="systemStatus">--</strong>
+            </div>
+            <div>
+              <span>层数</span>
+              <strong id="systemLayers">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>执行边界</span>
+            <strong id="systemExecutionMode">--</strong>
+          </div>
+          <div class="result-row">
+            <span>策略锁定</span>
+            <strong id="systemPolicyLocked">--</strong>
+          </div>
+          <div class="boundary-list" id="systemBoundaryList"></div>
+          <p class="result-note" id="systemConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel meta-edge-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="检测系统内部是否出现状态、风险、组合、周期之间的矛盾，用于提醒复核。">Meta Edge</h2>
+            <span class="panel-kicker">M1.1</span>
+          </div>
+          <div class="meta-edge-headline">
+            <div>
+              <span>矛盾强度</span>
+              <strong id="metaEdgeScore">--</strong>
+            </div>
+            <div>
+              <span>等级</span>
+              <strong id="metaEdgeLevel">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>触发信号</span>
+            <strong id="metaEdgeActiveCount">--</strong>
+          </div>
+          <div class="meta-signal-list" id="metaEdgeSignalList"></div>
+          <div class="meta-strength-list" id="metaEdgeStrengthList"></div>
+          <p class="result-note" id="metaEdgeConclusion">--</p>
+        </article>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/charts.js?v=20260629-channels-1"></script>
+    <script src="/static/dashboard.js?v=20260708-balanced-failure-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

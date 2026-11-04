@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A股市场决策台</title>
+    <link rel="stylesheet" href="/dashboard.css" />
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+    <main class="dashboard-shell">
+      <header class="dashboard-head">
+        <div>
+          <span class="eyebrow">MYINVEST / MARKET CONTROL</span>
+          <h1>A股市场决策台</h1>
+          <p id="modelLine">研究摘要加载中</p>
+        </div>
+        <div class="date-block">
+          <span>研究基准日</span>
+          <strong id="basisDate">--</strong>
+          <small id="freshnessState">--</small>
+        </div>
+      </header>
+
+      <nav class="portal-nav" aria-label="市场研究工作台">
+        <a class="active" href="/">决策台</a>
+        <a href="/research.html">市场研究</a>
+        <a href="/risk.html">风险与恐慌</a>
+        <a href="/cycle.html">周期引擎</a>
+        <a href="/allocation.html">四仓配置</a>
+        <a href="/cycle-engine-backtest.html">周期回测</a>
+        <a href="/methodology.html">方法与审计</a>
+        <a href="/chatgpt-qa.html">ChatGPT问答</a>
+      </nav>
+
+      <section id="freshnessAlert" class="attention-strip" aria-label="数据新鲜度">
+        <span id="attentionMark">●</span>
+        <div><strong id="attentionTitle">--</strong><p id="attentionMessage">--</p></div>
+        <a href="/research.html">查看研究状态</a>
+      </section>
+
+      <section class="decision-grid" aria-label="今日决策">
+        <article class="decision-card primary">
+          <span class="card-label">今日执行建议</span>
+          <strong id="equityRange">--</strong>
+          <div class="decision-meta"><span id="positionScore">仓位分 --</span><span id="regimeLabel">--</span></div>
+          <p id="decisionSummary">--</p>
+        </article>
+        <article class="decision-card">
+          <span class="card-label">战略周期锚</span>
+          <strong id="cycleState">--</strong>
+          <div class="decision-meta"><span id="cycleRange">权益 --</span><span id="cycleMonth">--</span></div>
+          <a href="/cycle.html">进入周期引擎 →</a>
+        </article>
+        <article class="decision-card">
+          <span class="card-label">战术状态</span>
+          <strong id="opportunityScore">--</strong>
+          <div class="decision-meta"><span>市场机会分</span><span id="trendLabel">--</span></div>
+          <a href="/research.html">查看评分依据 →</a>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel observation-panel">
+          <div class="panel-head"><div><span class="eyebrow">READ THE TAPE</span><h2>盘面观察</h2></div><span id="observationDate">--</span></div>
+          <strong id="observationTitle">--</strong>
+          <p id="observationMessage">--</p>
+          <div id="observationSignals" class="signal-list"></div>
+        </article>
+        <article class="panel evidence-panel">
+          <div class="panel-head"><div><span class="eyebrow">DECISION TRACE</span><h2>仓位为什么是这个数</h2></div><a href="/research.html">完整依据</a></div>
+          <div id="decisionReasons" class="reason-list"></div>
+          <div id="riskCaps" class="risk-callout"></div>
+        </article>
+      </section>
+
+      <section class="panel allocation-panel">
+        <div class="panel-head"><div><span class="eyebrow">STOCK ACCOUNT</span><h2>股票账户四仓</h2></div><a href="/allocation.html">配置详情</a></div>
+        <div id="allocationState" class="allocation-state">--</div>
+        <div id="allocationCards" class="allocation-cards"></div>
+      </section>
+
+      <section class="dashboard-grid lower-grid">
+        <article class="panel fear-band">
+          <div class="panel-head"><div><span class="eyebrow">FEAR MONITOR</span><h2>市场恐慌状态</h2></div><a href="/risk.html">风险详情</a></div>
+          <div class="fear-summary"><strong id="fearScore">--</strong><span id="fearLevel">--</span><small id="fearPhase">--</small></div>
+          <div class="fear-compare"><span>沪深300 <b id="fear300">--</b></span><span>中证1000 <b id="fear1000">--</b></span><span>小盘差 <b id="fearSpread">--</b></span></div>
+          <div id="fearChart" class="spark-chart" role="img" aria-label="A-FEAR近期变化"></div>
+          <p class="panel-note">A-FEAR 是恐慌强度监测，不是买入分。</p>
+        </article>
+        <article class="panel reminder-panel">
+          <div class="panel-head"><div><span class="eyebrow">ATTENTION</span><h2>今日提醒</h2></div></div>
+          <div id="reminderList" class="reminder-list"></div>
+        </article>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="panel-head"><div><span class="eyebrow">RECENT TREND</span><h2>近况：仓位分与上证指数</h2></div><a href="/research.html">完整历史</a></div>
+        <div id="recentChart" class="large-chart" role="img" aria-label="近期仓位分与上证指数"></div>
+      </section>
+
+      <section class="quick-links" aria-label="研究入口">
+        <a href="/research.html"><span>01</span><strong>市场研究</strong><small>评分、子项与每日观察</small></a>
+        <a href="/risk.html"><span>02</span><strong>风险与恐慌</strong><small>A-FEAR、风险上限、波动</small></a>
+        <a href="/cycle.html"><span>03</span><strong>周期引擎</strong><small>200个月状态与仓位锚</small></a>
+        <a href="/allocation.html"><span>04</span><strong>四仓配置</strong><small>β、α、防御、流动性</small></a>
+        <a href="/cycle-engine-backtest.html"><span>05</span><strong>周期回测</strong><small>收益、回撤和逐月结果</small></a>
+        <a href="/methodology.html"><span>06</span><strong>方法与审计</strong><small>数据链、规则和边界</small></a>
+        <a href="/chatgpt-qa.html"><span>07</span><strong>ChatGPT问答</strong><small>每日研究问答与历史</small></a>
+      </section>
+
+      <footer class="dashboard-foot">研究输出仅供复盘和仓位框架参考，不构成自动交易指令。</footer>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/dashboard.js"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]" defer></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]" defer></script>
+  </body>
+</html>

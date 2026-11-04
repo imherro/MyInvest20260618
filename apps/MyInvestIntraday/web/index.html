@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyInvestIntraday</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+    <main class="intraday-shell" id="app">
+      <section class="topbar" aria-label="日间看盘状态">
+        <div class="brand-block">
+          <div class="brand-kicker">MyInvestIntraday</div>
+          <h1>日间看盘</h1>
+        </div>
+        <div class="status-strip">
+          <span class="status-pill" id="session-pill">读取中</span>
+          <span class="status-pill neutral" id="clock-pill">--:--:--</span>
+          <span class="status-pill neutral" id="updated-pill">等待刷新</span>
+        </div>
+        <div class="toolbar">
+          <button type="button" id="fullscreen-button" title="进入全屏">全屏</button>
+          <button type="button" id="refresh-button" title="立即刷新">刷新</button>
+        </div>
+      </section>
+
+      <section class="dashboard-grid" aria-label="盘中工作台">
+        <section class="panel market-panel" aria-labelledby="market-title">
+          <div class="panel-head">
+            <h2 id="market-title">市场大概率</h2>
+            <a id="market-link" href="https://market.okbbc.com/" target="_blank" rel="noreferrer">市场</a>
+          </div>
+          <div class="prediction-block" id="market-prediction"></div>
+          <div class="market-score">
+            <canvas id="score-canvas" width="220" height="220" aria-label="市场分图形"></canvas>
+            <div class="score-readout">
+              <span class="score-number" id="market-score">--</span>
+              <span class="score-label" id="market-regime">暂无</span>
+              <span class="score-range" id="position-range">--</span>
+            </div>
+          </div>
+          <div class="metric-grid" id="market-metrics"></div>
+          <div class="quote-grid" id="index-quotes"></div>
+        </section>
+
+        <section class="panel signals-panel" aria-labelledby="signals-title">
+          <div class="panel-head">
+            <h2 id="signals-title">行业与策略</h2>
+            <span id="channel-count">--</span>
+          </div>
+          <div class="section-stack">
+            <div>
+              <h3 class="subhead">行业大概率</h3>
+              <div class="prediction-list" id="industry-list"></div>
+            </div>
+            <div>
+              <h3 class="subhead">策略大概率</h3>
+              <div class="prediction-list" id="strategy-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel alerts-panel" aria-labelledby="alerts-title">
+          <div class="panel-head">
+            <h2 id="alerts-title">重点关注</h2>
+            <span id="alert-count">--</span>
+          </div>
+          <div class="focus-list" id="focus-list"></div>
+        </section>
+
+        <section class="panel source-panel" aria-labelledby="source-title">
+          <div class="panel-head">
+            <h2 id="source-title">持仓约束</h2>
+            <span id="source-count">--</span>
+          </div>
+          <div class="holding-list" id="holding-list"></div>
+          <div class="alert-list" id="alert-list"></div>
+        </section>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="https://invest.okbbc.com/header.js" defer></script>
+    <script src="https://invest.okbbc.com/footer.js" defer></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

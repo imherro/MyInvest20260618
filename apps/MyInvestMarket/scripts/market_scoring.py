@@ -1,0 +1,3283 @@
+from __future__ import annotations
+
+import copy
+
+import argparse
+import hashlib
+import json
+import math
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+from zoneinfo import ZoneInfo
+
+from market_regime import compute_market_regime
+from market_risk import compute_risk_engine
+from market_trend import compute_market_trend
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT / "data"
+DEFAULT_SNAPSHOT_PATH = DATA_DIR / "latest_market_snapshot.json"
+DEFAULT_HISTORY_PATH = DATA_DIR / "market_score_history.json"
+DEFAULT_AUDIT_LOG_PATH = DATA_DIR / "market_score_history_audit.jsonl"
+TZ = ZoneInfo("Asia/Shanghai")
+MODEL_VERSION = "v3.4_contrarian"
+SCORE_SCHEMA_VERSION = "2.5"
+FEATURE_SCHEMA_VERSION = "1.7"
+POSITION_POLICY_VERSION = "stock_account_position_policy_v4"
+ALLOCATION_POLICY_VERSION = "allocation_policy_v2"
+HISTORY_SCHEMA_VERSION = 3
+HISTORY_DEDUPE_KEY_FIELDS = (
+    "basis_trade_date",
+    "snapshot_sha256",
+    "model_version",
+    "position_policy_version",
+    "allocation_policy_version",
+)
+MIN_ROLLING_SAMPLE_COUNT = 4
+RISK_CAP_SEVERITY_RANK = {"low": 1, "medium": 2, "high": 3}
+REQUIRED_SCORE_RECORD_STRING_FIELDS = (
+    "run_id",
+    "model_version",
+    "position_policy_version",
+    "allocation_policy_version",
+    "account_scope",
+    "scored_at",
+    "basis_trade_date",
+    "snapshot_sha256",
+    "market_regime",
+    "market_regime_code",
+    "trend_state",
+    "confidence",
+    "recommended_equity_position_range",
+)
+MARKET_REGIME_CODES = {"accumulation", "expansion", "distribution", "contraction"}
+TREND_STATES = {"early_trend", "strong_trend", "late_trend", "weakening_trend"}
+REQUIRED_SCORE_RECORD_NUMERIC_RANGES = {
+    "market_opportunity_score": (0, 100),
+    "crowding_penalty": (0, 30),
+    "risk_penalty_score": (0, 100),
+    "risk_discount": (0, 1),
+    "pre_cap_market_position_score": (0, 100),
+    "market_position_score": (0, 100),
+}
+OPTIONAL_SCORE_RECORD_NUMERIC_RANGES = {
+    "opportunity_score": (0, 100),
+    "base_market_position_score": (0, 100),
+    "risk_adjusted_market_position_score": (0, 100),
+    "pre_overlay_market_position_score": (0, 100),
+    "contrarian_beta_overlay_score": (0, 100),
+    "contrarian_beta_add_score": (0, 100),
+    "legacy_vol_adjusted_market_position_score": (0, 100),
+}
+SCORE_RECORD_PERCENT_RANGE_FIELDS = (
+    "recommended_equity_position_range",
+    "base_equity_position_range",
+    "equity_position_range",
+    "legacy_vol_adjusted_equity_position_range",
+)
+
+MODULES = {
+    "index_trend": {"label": "指数趋势", "weight": 20},
+    "breadth": {"label": "市场宽度", "weight": 15},
+    "liquidity": {"label": "成交与流动性", "weight": 10},
+    "capital_flow": {"label": "资金与风险偏好", "weight": 15},
+    "mainline": {"label": "主线强度", "weight": 15},
+    "valuation": {"label": "估值与再定价", "weight": 15},
+    "macro": {"label": "宏观与外部环境", "weight": 10},
+}
+
+STABLE_RISK_CAP_REASONS = (
+    "high_crowding_extreme",
+    "high_crowding",
+    "volume_blowoff_top",
+    "sector_concentration_top",
+    "capital_outflow_combo",
+    "extreme_expensive_valuation",
+    "expensive_valuation",
+    "bubble_top_combo",
+    "extreme_high_volatility",
+    "high_volatility",
+    "missing_valuation_data_hot_market",
+    "missing_volatility_data_hot_market",
+    "missing_core_risk_data_hot_market",
+    "strong_index_weak_breadth",
+)
+MARKET_OBSERVATION_VERSION = "market_observation_v1"
+GROWTH_MAINLINE_INDUSTRY_KEYWORDS = (
+    "半导体",
+    "芯片",
+    "电子",
+    "通信",
+    "计算机",
+    "软件",
+    "人工智能",
+    "AI",
+    "CPO",
+    "光模块",
+    "机器人",
+    "电力设备",
+)
+TRADITIONAL_WEIGHT_INDUSTRY_KEYWORDS = (
+    "银行",
+    "保险",
+    "证券",
+    "煤炭",
+    "石油",
+    "石化",
+    "交通运输",
+    "公用事业",
+    "建筑",
+    "地产",
+    "房地产",
+    "钢铁",
+    "有色",
+    "农林牧渔",
+    "家用电器",
+)
+
+
+class ScoreRecordValidationError(ValueError):
+    pass
+
+
+class MarketSnapshotValidationError(ValueError):
+    pass
+
+
+def history_audit_log_path(history_path: Path = DEFAULT_HISTORY_PATH) -> Path:
+    try:
+        if history_path.resolve() == (DATA_DIR / "market_score_history.json").resolve():
+            return DEFAULT_AUDIT_LOG_PATH
+    except Exception:
+        pass
+    if history_path == DATA_DIR / "market_score_history.json":
+        return DEFAULT_AUDIT_LOG_PATH
+    return history_path.with_name(f"{history_path.stem}_audit.jsonl")
+
+
+def clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, value))
+
+
+def as_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def mean(values: list[float]) -> float | None:
+    clean = [value for value in values if math.isfinite(value)]
+    if not clean:
+        return None
+    return sum(clean) / len(clean)
+
+
+def scale(value: float | None, low: float, high: float, points: float) -> float:
+    if value is None or not math.isfinite(value) or low == high:
+        return points * 0.5
+    if low < high:
+        ratio = (value - low) / (high - low)
+    else:
+        ratio = (low - value) / (low - high)
+    return clamp(ratio, 0.0, 1.0) * points
+
+
+def cap_score_when_sample_short(score: float | None, max_score: float, sample_count: Any) -> float:
+    score_value = as_float(score)
+    count = as_float(sample_count)
+    if score_value is None:
+        return max_score * 0.5
+    if count is None or count < MIN_ROLLING_SAMPLE_COUNT:
+        return min(score_value, max_score * 0.5)
+    return score_value
+
+
+def penalty_scale(value: float | None, no_penalty: float, full_penalty: float, points: float) -> float:
+    if value is None or not math.isfinite(value):
+        return 0.0
+    return scale(value, no_penalty, full_penalty, points)
+
+
+def round2(value: float | None) -> float | None:
+    if value is None or not math.isfinite(value):
+        return None
+    return round(value, 2)
+
+
+def parse_date_value(value: Any) -> date | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        text = str(value).strip()
+        if len(text) == 8 and text.isdigit():
+            return datetime.strptime(text, "%Y%m%d").date()
+        return datetime.fromisoformat(text[:10]).date()
+    except Exception:
+        return None
+
+
+def pct(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return round(value * 100, 2)
+
+
+def parse_percent_range(value: str | None) -> tuple[float, float] | None:
+    if not value or "-" not in value:
+        return None
+    try:
+        left, right = value.replace("%", "").split("-", 1)
+        return float(left), float(right)
+    except Exception:
+        return None
+
+
+def format_percent_range(bounds: tuple[float, float] | None) -> str | None:
+    if bounds is None:
+        return None
+    lower = clamp(bounds[0], 0, 100)
+    upper = clamp(bounds[1], 0, 100)
+    if lower > upper:
+        lower, upper = upper, lower
+    return f"{round(lower)}%-{round(upper)}%"
+
+
+def metric(label: str, value: Any, unit: str = "", higher_is_better: bool | None = None) -> dict[str, Any]:
+    return {
+        "label": label,
+        "value": round2(as_float(value)) if as_float(value) is not None else value,
+        "unit": unit,
+        "higher_is_better": higher_is_better,
+    }
+
+
+def evidence(label: str, value: Any, unit: str, score: float, max_score: float, note: str) -> dict[str, Any]:
+    return {
+        "label": label,
+        "value": round2(as_float(value)) if as_float(value) is not None else value,
+        "unit": unit,
+        "score": round2(score),
+        "max_score": max_score,
+        "note": note,
+    }
+
+
+def text_contains_any(value: Any, keywords: tuple[str, ...]) -> bool:
+    text = str(value or "")
+    lowered = text.lower()
+    return any(keyword.lower() in lowered for keyword in keywords)
+
+
+def compact_industry_rows(rows: Any, *, value_key: str, unit: str, limit: int = 5) -> list[dict[str, Any]]:
+    if not isinstance(rows, list):
+        return []
+    compacted: list[dict[str, Any]] = []
+    for row in rows[:limit]:
+        if not isinstance(row, dict):
+            continue
+        compacted.append(
+            {
+                "industry": row.get("industry"),
+                "ts_code": row.get("ts_code"),
+                "value": round2(as_float(row.get(value_key))),
+                "unit": unit,
+                "pct_change": round2(as_float(row.get("pct_change"))),
+                "lead_stock": row.get("lead_stock"),
+            }
+        )
+    return compacted
+
+
+def matching_industry_rows(rows: list[dict[str, Any]], keywords: tuple[str, ...]) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    for row in rows:
+        name = row.get("industry")
+        if text_contains_any(name, keywords):
+            matched.append(row)
+    return matched
+
+
+def industry_names(rows: list[dict[str, Any]], limit: int = 4) -> list[str]:
+    names: list[str] = []
+    for row in rows:
+        name = row.get("industry")
+        if isinstance(name, str) and name and name not in names:
+            names.append(name)
+        if len(names) >= limit:
+            break
+    return names
+
+
+def module_score_percent(modules: dict[str, Any], key: str) -> float | None:
+    module = modules.get(key) if isinstance(modules, dict) else None
+    if not isinstance(module, dict):
+        return None
+    score_pct = as_float(module.get("score_pct"))
+    if score_pct is None:
+        return None
+    return round2(score_pct * 100 if 0 <= score_pct <= 1 else score_pct)
+
+
+def breadth_ratio_pct(breadth: dict[str, Any]) -> float | None:
+    advancers = as_float(breadth.get("advancers"))
+    decliners = as_float(breadth.get("decliners"))
+    flat = as_float(breadth.get("flat")) or 0
+    total = as_float(breadth.get("total"))
+    if total is None and advancers is not None and decliners is not None:
+        total = advancers + decliners + flat
+    if advancers is None or total is None or total <= 0:
+        return None
+    return round2((advancers / total) * 100)
+
+
+def percent_from_fraction(value: Any) -> float | None:
+    number = as_float(value)
+    if number is None:
+        return None
+    return round2(number * 100)
+
+
+def format_observation_number(value: Any, suffix: str = "") -> str:
+    number = as_float(value)
+    if number is None:
+        return "--"
+    text = f"{number:.2f}".rstrip("0").rstrip(".")
+    return f"{text}{suffix}"
+
+
+def build_market_observation(snapshot: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    modules = record.get("modules", {}) if isinstance(record.get("modules"), dict) else {}
+    breadth = snapshot.get("breadth", {}) if isinstance(snapshot.get("breadth"), dict) else {}
+    sector_rotation = snapshot.get("sector_rotation", {}) if isinstance(snapshot.get("sector_rotation"), dict) else {}
+    capital = snapshot.get("capital_flow", {}) if isinstance(snapshot.get("capital_flow"), dict) else {}
+
+    top_return = compact_industry_rows(
+        sector_rotation.get("top5_industries_by_return"),
+        value_key="pct_change",
+        unit="%",
+    )
+    top_inflow = compact_industry_rows(
+        sector_rotation.get("top5_industries_by_capital_inflow"),
+        value_key="net_amount_100m_cny",
+        unit="亿元",
+    )
+    growth_rows = matching_industry_rows([*top_inflow, *top_return], GROWTH_MAINLINE_INDUSTRY_KEYWORDS)
+    traditional_rows = matching_industry_rows([*top_return, *top_inflow], TRADITIONAL_WEIGHT_INDUSTRY_KEYWORDS)
+
+    breadth_pct = module_score_percent(modules, "breadth")
+    mainline_pct = module_score_percent(modules, "mainline")
+    capital_pct = module_score_percent(modules, "capital_flow")
+    valuation_pct = module_score_percent(modules, "valuation")
+    spread_pct = round2(mainline_pct - breadth_pct) if mainline_pct is not None and breadth_pct is not None else None
+    advancer_ratio = breadth_ratio_pct(breadth)
+    median_pct = round2(as_float(breadth.get("median_pct_change")))
+    strong_decliners_pct = percent_from_fraction(breadth.get("strong_decliners_lt_minus3_pct"))
+    strong_advancers_pct = percent_from_fraction(breadth.get("strong_advancers_gt3_pct"))
+    industry_up_ratio_pct = percent_from_fraction(breadth.get("industry_up_ratio"))
+
+    broad_weak = any(
+        condition
+        for condition in [
+            advancer_ratio is not None and advancer_ratio < 45,
+            median_pct is not None and median_pct < 0,
+            strong_decliners_pct is not None and strong_decliners_pct >= 18,
+            industry_up_ratio_pct is not None and industry_up_ratio_pct < 45,
+        ]
+    )
+    severe_divergence = bool(
+        mainline_pct is not None
+        and breadth_pct is not None
+        and spread_pct is not None
+        and mainline_pct >= 65
+        and breadth_pct <= 45
+        and spread_pct >= 25
+    )
+    growth_signal_active = bool(growth_rows)
+    traditional_reversal_active = bool(traditional_rows)
+    risk_caps = record.get("risk_caps", []) if isinstance(record.get("risk_caps"), list) else []
+    final_score = round2(as_float(record.get("market_position_score")))
+    opportunity_score = round2(as_float(record.get("market_opportunity_score")))
+
+    if severe_divergence and traditional_reversal_active:
+        label = "强主线弱宽度，传统权重反抽"
+    elif severe_divergence:
+        label = "强主线弱宽度，结构分化"
+    elif broad_weak:
+        label = "宽度偏弱，等待确认"
+    elif final_score is not None and final_score >= 65 and (breadth_pct or 0) >= 55:
+        label = "趋势与宽度共振"
+    else:
+        label = "结构中性观察"
+
+    if final_score is not None and final_score < 20 and severe_divergence:
+        stance = "防守观察，不确认全面反转"
+    elif final_score is not None and final_score < 20:
+        stance = "防守观察"
+    elif risk_caps:
+        stance = "风险上限压制，仓位先服从风控"
+    elif severe_divergence:
+        stance = "只承认结构性机会，不确认全面反转"
+    elif broad_weak:
+        stance = "反转需要宽度和资金继续确认"
+    else:
+        stance = "按评分和四仓配置执行"
+
+    observations: list[str] = []
+    watch_points: list[str] = []
+    if mainline_pct is not None and breadth_pct is not None:
+        observations.append(
+            "主线得分 "
+            f"{format_observation_number(mainline_pct, '%')}，宽度得分 {format_observation_number(breadth_pct, '%')}"
+            f"，差值 {format_observation_number(spread_pct, 'pct')}。"
+        )
+    if growth_signal_active:
+        observations.append(f"成长主线线索：{', '.join(industry_names(growth_rows))} 位于涨幅或资金流入前列。")
+    if traditional_reversal_active:
+        observations.append(f"传统权重反抽线索：{', '.join(industry_names(traditional_rows))} 位于涨幅或资金流入前列。")
+    if broad_weak:
+        observations.append(
+            "宽度仍弱："
+            f"上涨占比 {format_observation_number(advancer_ratio, '%')}，"
+            f"个股中位数 {format_observation_number(median_pct, '%')}，"
+            f"强跌占比 {format_observation_number(strong_decliners_pct, '%')}。"
+        )
+    northbound = round2(as_float(capital.get("northbound_net_inflow_100m_cny")))
+    main_net = round2(as_float(capital.get("main_net_inflow_100m_cny")))
+    if northbound is not None or main_net is not None:
+        observations.append(
+            f"资金分歧：北向 {format_observation_number(northbound, '亿元')}，"
+            f"主力 {format_observation_number(main_net, '亿元')}。"
+        )
+    if risk_caps:
+        observations.append(f"已触发 {len(risk_caps)} 项风险上限，仓位分优先服从风控。")
+
+    if severe_divergence or broad_weak:
+        watch_points.append("宽度修复是否发生：上涨占比、行业上涨占比和个股中位数需要同步改善。")
+    if growth_signal_active:
+        watch_points.append("半导体/芯片等成长主线是继续扩散，还是仅维持资金抱团。")
+    if traditional_reversal_active:
+        watch_points.append("传统权重反抽是否延续，并能否带动指数与个股宽度共振。")
+    watch_points.append("主力资金是否收敛流出，风险上限数量是否下降。")
+
+    summary_parts = []
+    if severe_divergence:
+        summary_parts.append(
+            "主线强但宽度弱："
+            f"主线 {format_observation_number(mainline_pct, '%')}，宽度 {format_observation_number(breadth_pct, '%')}"
+        )
+    elif mainline_pct is not None and breadth_pct is not None:
+        summary_parts.append(
+            f"主线 {format_observation_number(mainline_pct, '%')}，宽度 {format_observation_number(breadth_pct, '%')}"
+        )
+    if growth_signal_active:
+        summary_parts.append(f"成长线索在 {', '.join(industry_names(growth_rows, 2))}")
+    if traditional_reversal_active:
+        summary_parts.append(f"传统权重反抽在 {', '.join(industry_names(traditional_rows, 3))}")
+    if broad_weak:
+        summary_parts.append(
+            f"市场中位数 {format_observation_number(median_pct, '%')}、上涨占比 {format_observation_number(advancer_ratio, '%')}"
+        )
+    summary_parts.append(
+        f"仓位分 {format_observation_number(final_score)}，推荐 {record.get('recommended_equity_position_range') or '--'}，{stance}"
+    )
+
+    return {
+        "version": MARKET_OBSERVATION_VERSION,
+        "basis_trade_date": record.get("basis_trade_date") or snapshot.get("date"),
+        "label": label,
+        "stance": stance,
+        "summary": "；".join(summary_parts) + "。",
+        "opportunity_score": opportunity_score,
+        "position_score": final_score,
+        "recommended_equity_position_range": record.get("recommended_equity_position_range"),
+        "divergence": {
+            "mainline_score_pct": mainline_pct,
+            "breadth_score_pct": breadth_pct,
+            "capital_flow_score_pct": capital_pct,
+            "valuation_score_pct": valuation_pct,
+            "spread_pct": spread_pct,
+            "severe": severe_divergence,
+        },
+        "broad_market": {
+            "weak": broad_weak,
+            "advancer_ratio_pct": advancer_ratio,
+            "median_pct_change": median_pct,
+            "strong_advancers_pct": strong_advancers_pct,
+            "strong_decliners_pct": strong_decliners_pct,
+            "industry_up_ratio_pct": industry_up_ratio_pct,
+            "advancers": breadth.get("advancers"),
+            "decliners": breadth.get("decliners"),
+            "limit_up": breadth.get("limit_up"),
+            "limit_down": breadth.get("limit_down"),
+        },
+        "mainline": {
+            "status": "strong" if (mainline_pct or 0) >= 65 else "neutral" if (mainline_pct or 0) >= 45 else "weak",
+            "top_return_industries": top_return,
+            "top_inflow_industries": top_inflow,
+            "growth_signal": {
+                "active": growth_signal_active,
+                "industries": industry_names(growth_rows),
+                "matched_rows": growth_rows,
+            },
+        },
+        "traditional_weight_reversal": {
+            "active": traditional_reversal_active,
+            "industries": industry_names(traditional_rows),
+            "matched_rows": traditional_rows,
+        },
+        "capital_flow": {
+            "northbound_net_inflow_100m_cny": northbound,
+            "main_net_inflow_100m_cny": main_net,
+        },
+        "risk_read": {
+            "risk_cap_count": len(risk_caps),
+            "risk_caps": risk_caps,
+            "crowding_penalty": record.get("crowding_penalty"),
+            "risk_penalty_score": record.get("risk_penalty_score"),
+        },
+        "observations": observations,
+        "watch_points": watch_points,
+    }
+
+
+def module_result(
+    key: str,
+    score: float,
+    summary: str,
+    evidence_items: list[dict[str, Any]],
+    metrics: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    weight = MODULES[key]["weight"]
+    score = clamp(score, 0.0, float(weight))
+    return {
+        "label": MODULES[key]["label"],
+        "weight": weight,
+        "score": round2(score),
+        "score_pct": round2(score / weight * 100),
+        "summary": summary,
+        "evidence": evidence_items,
+        "metrics": metrics,
+    }
+
+
+def module_strength(score: float, key: str) -> str:
+    weight = as_float(MODULES.get(key, {}).get("weight")) or 1
+    ratio = clamp((as_float(score) or 0) / weight, 0, 1)
+    if ratio >= 0.7:
+        return "偏强"
+    if ratio <= 0.4:
+        return "偏弱"
+    return "中性"
+
+
+def signed_pct_text(value: float | None) -> str:
+    number = as_float(value)
+    if number is None:
+        return "--"
+    prefix = "+" if number > 0 else ""
+    return f"{prefix}{round2(number)}%"
+
+
+def market_snapshot_files() -> list[Path]:
+    return sorted(DATA_DIR.glob("market_snapshot_*.json"))
+
+
+def snapshot_sort_key(snapshot: dict[str, Any]) -> str:
+    return str(snapshot.get("date") or (snapshot.get("market", {}) or {}).get("as_of_trade_date") or "")
+
+
+def load_market_snapshots_through(basis_trade_date: str | None) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
+    for path in market_snapshot_files():
+        try:
+            payload = load_json(path)
+        except Exception:
+            continue
+        date_key = snapshot_sort_key(payload)
+        if basis_trade_date and date_key > basis_trade_date:
+            continue
+        snapshots.append(payload)
+    snapshots.sort(key=snapshot_sort_key)
+    return snapshots
+
+
+def rolling_market_features(snapshot: dict[str, Any]) -> dict[str, Any]:
+    basis = snapshot.get("date") or (snapshot.get("market", {}) or {}).get("as_of_trade_date")
+    snapshots = load_market_snapshots_through(str(basis) if basis else None)
+    if not snapshots or snapshot_sort_key(snapshots[-1]) != str(basis):
+        snapshots.append(snapshot)
+        snapshots.sort(key=snapshot_sort_key)
+
+    def values(key_fn: Any, window: int) -> list[float]:
+        result: list[float] = []
+        for row in snapshots[-window:]:
+            value = as_float(key_fn(row))
+            if value is not None:
+                result.append(value)
+        return result
+
+    def advancer_ratio(row: dict[str, Any]) -> float | None:
+        breadth = row.get("breadth", {}) or {}
+        total = as_float(breadth.get("total"))
+        advancers = as_float(breadth.get("advancers"))
+        return advancers / total if total else None
+
+    def top_flow_sum(row: dict[str, Any]) -> float:
+        flows = (row.get("sector_rotation", {}) or {}).get("top5_industries_by_capital_inflow", []) or []
+        return sum(as_float(item.get("net_amount_100m_cny")) or 0 for item in flows)
+
+    def avg_volume_ratio(row: dict[str, Any]) -> float | None:
+        indices = (row.get("market", {}) or {}).get("indices", {}) or {}
+        volume_values = [
+            value
+            for item in indices.values()
+            if isinstance(item, dict) and (value := as_float(item.get("volume_ratio_5d"))) is not None
+        ]
+        return mean(volume_values)
+
+    current_flows = (snapshot.get("sector_rotation", {}) or {}).get("top5_industries_by_capital_inflow", []) or []
+    current_groups = {theme_group(row.get("industry", "")) for row in current_flows}
+    recent_group_hits = 0
+    recent_group_total = 0
+    basis_key = str(basis) if basis else ""
+    prior_rows = [row for row in snapshots if snapshot_sort_key(row) != basis_key][-5:]
+    for row in prior_rows:
+        groups = {theme_group(item.get("industry", "")) for item in ((row.get("sector_rotation", {}) or {}).get("top5_industries_by_capital_inflow", []) or [])}
+        if not groups:
+            continue
+        recent_group_total += 1
+        if current_groups & groups:
+            recent_group_hits += 1
+
+    north_5 = values(lambda row: (row.get("capital_flow", {}) or {}).get("northbound_net_inflow_100m_cny"), 5)
+    main_5 = values(lambda row: (row.get("capital_flow", {}) or {}).get("main_net_inflow_100m_cny"), 5)
+    breadth_5 = values(advancer_ratio, 5)
+    top_flow_5 = values(top_flow_sum, 5)
+    volume_ratio_5 = values(avg_volume_ratio, 5)
+
+    return {
+        "sample_count": len(snapshots),
+        "basis_trade_date": basis,
+        "capital_flow": {
+            "northbound_5d_sum_100m_cny": round2(sum(north_5)) if north_5 else None,
+            "main_5d_sum_100m_cny": round2(sum(main_5)) if main_5 else None,
+            "northbound_sample_count": len(north_5),
+            "main_sample_count": len(main_5),
+        },
+        "breadth": {
+            "advancer_ratio_5d_avg_pct": pct(mean(breadth_5)) if breadth_5 else None,
+            "sample_count": len(breadth_5),
+        },
+        "liquidity": {
+            "avg_volume_ratio_5d": round2(mean(volume_ratio_5)) if volume_ratio_5 else None,
+            "avg_volume_ratio_slope_5d": round2(volume_ratio_5[-1] - volume_ratio_5[0]) if len(volume_ratio_5) >= 2 else None,
+            "sample_count": len(volume_ratio_5),
+        },
+        "mainline": {
+            "top_flow_5d_sum_100m_cny": round2(sum(top_flow_5)) if top_flow_5 else None,
+            "current_group_repeat_ratio_5d": round2(recent_group_hits / recent_group_total) if recent_group_total else None,
+            "sample_count": recent_group_total,
+        },
+    }
+
+
+def index_trend(snapshot: dict[str, Any]) -> dict[str, Any]:
+    indices = snapshot.get("market", {}).get("indices", {}) or {}
+    rows = [row for row in indices.values() if row.get("close") is not None]
+
+    above_count = sum(1 for row in rows if row.get("above_ma20") is True)
+    ret5_values = [as_float(row.get("return_5d_pct")) for row in rows]
+    ret20_values = [as_float(row.get("return_20d_pct")) for row in rows]
+    dev_values = [as_float(row.get("ma20_deviation_pct")) for row in rows]
+    ret5_clean = [value for value in ret5_values if value is not None]
+    ret20_clean = [value for value in ret20_values if value is not None]
+    dev_clean = [value for value in dev_values if value is not None]
+
+    avg_ret5 = mean(ret5_clean)
+    avg_ret20 = mean(ret20_clean)
+    avg_dev = mean(dev_clean)
+    above_score = (above_count / len(rows) * 6) if rows else 3
+    momentum_score = mean([scale(value, -3, 6, 5) for value in ret5_clean]) if ret5_clean else 2.5
+    trend_score = mean([scale(value, -8, 8, 5) for value in ret20_clean]) if ret20_clean else 2.5
+
+    if avg_dev is None:
+        deviation_score = 1.0
+    elif -1 <= avg_dev <= 5:
+        deviation_score = 2.0
+    elif avg_dev > 8 or avg_dev < -6:
+        deviation_score = 0.6
+    else:
+        deviation_score = 1.2
+
+    sh = indices.get("000001.SH", {})
+    sz = indices.get("399001.SZ", {})
+    cy = indices.get("399006.SZ", {})
+    sh20 = as_float(sh.get("return_20d_pct"))
+    sz20 = as_float(sz.get("return_20d_pct"))
+    cy20 = as_float(cy.get("return_20d_pct"))
+    if all(value is not None and value > 0 for value in [sh20, sz20, cy20]):
+        balance_score = 2.0
+    elif sh20 is not None and sz20 is not None and cy20 is not None and (sz20 > 0 or cy20 > 0):
+        balance_score = 1.0
+    else:
+        balance_score = 0.7
+
+    score = above_score + (momentum_score or 0) + (trend_score or 0) + deviation_score + balance_score
+    metrics = {
+        "shanghai_close": metric("上证收盘", sh.get("close"), "点", True),
+        "above_ma20_count": metric("站上MA20指数数", above_count, "个", True),
+        "avg_return_5d_pct": metric("指数平均5日涨跌", avg_ret5, "%", True),
+        "avg_return_20d_pct": metric("指数平均20日涨跌", avg_ret20, "%", True),
+        "avg_ma20_deviation_pct": metric("平均MA20偏离", avg_dev, "%", None),
+        "chinext_return_5d_pct": metric("创业板5日涨跌", cy.get("return_5d_pct"), "%", True),
+    }
+    evidences = [
+        evidence("站上MA20指数数", above_count, "个", above_score, 6, "越多越说明指数层面修复更广。"),
+        evidence("指数平均5日涨跌", avg_ret5, "%", momentum_score or 0, 5, "短期动量衡量反弹强度。"),
+        evidence("指数平均20日涨跌", avg_ret20, "%", trend_score or 0, 5, "20日趋势决定是否从反弹进入趋势。"),
+        evidence("平均MA20偏离", avg_dev, "%", deviation_score, 2, "温和站上均线最好，过热或深跌都降分。"),
+        evidence("沪深创趋势一致性", "", "", balance_score, 2, "大盘和成长同时走强时更稳。"),
+    ]
+    strength = module_strength(score, "index_trend")
+    summary = f"指数趋势{strength}，{above_count}/{len(rows) or 0}个指数站上MA20，20日平均涨跌{signed_pct_text(avg_ret20)}。"
+    return module_result("index_trend", score, summary, evidences, metrics)
+
+
+def market_breadth(snapshot: dict[str, Any]) -> dict[str, Any]:
+    breadth = snapshot.get("breadth", {}) or {}
+    advancers = as_float(breadth.get("advancers")) or 0
+    decliners = as_float(breadth.get("decliners")) or 0
+    total = as_float(breadth.get("total")) or (advancers + decliners)
+    advancer_ratio = advancers / total if total else None
+    industry_up_ratio = as_float(breadth.get("industry_up_ratio"))
+    median_pct_change = as_float(breadth.get("median_pct_change"))
+    strong_advancers_ratio = as_float(breadth.get("strong_advancers_gt3_pct"))
+    strong_decliners_ratio = as_float(breadth.get("strong_decliners_lt_minus3_pct"))
+    strong_spread = (
+        strong_advancers_ratio - strong_decliners_ratio
+        if strong_advancers_ratio is not None and strong_decliners_ratio is not None
+        else None
+    )
+    limit_up = as_float(breadth.get("limit_up")) or 0
+    limit_down = as_float(breadth.get("limit_down")) or 0
+    max_streak = as_float(breadth.get("max_limit_up_streak"))
+
+    adv_score = scale(advancer_ratio, 0.2, 0.65, 4)
+    industry_score = scale(industry_up_ratio, 0.2, 0.65, 3)
+    median_score = scale(median_pct_change, -1.5, 1.5, 2.5)
+    strong_score = scale(strong_spread, -0.12, 0.12, 2)
+    if limit_down <= 3 and limit_up >= 50:
+        limit_score = 2
+    else:
+        limit_score = scale(limit_up - limit_down * 5, 0, 80, 2)
+    streak_score = scale(max_streak, 1, 7, 1)
+    consistency_score = 0.5 if (advancer_ratio or 0) >= 0.5 and (industry_up_ratio or 0) >= 0.5 else 0.15
+
+    score = adv_score + industry_score + median_score + strong_score + limit_score + streak_score + consistency_score
+    metrics = {
+        "advancer_ratio_pct": metric("上涨家数占比", pct(advancer_ratio), "%", True),
+        "industry_up_ratio_pct": metric("行业上涨占比", pct(industry_up_ratio), "%", True),
+        "median_pct_change": metric("个股中位数涨跌", median_pct_change, "%", True),
+        "strong_advancers_gt3_pct": metric("涨幅超过3%占比", pct(strong_advancers_ratio), "%", True),
+        "strong_decliners_lt_minus3_pct": metric("跌幅超过3%占比", pct(strong_decliners_ratio), "%", False),
+        "strong_spread_pct": metric("强势股-弱势股占比差", pct(strong_spread), "%", True),
+        "limit_up": metric("涨停数", limit_up, "家", True),
+        "limit_down": metric("跌停数", limit_down, "家", False),
+        "max_limit_up_streak": metric("最高连板", max_streak, "板", True),
+    }
+    evidences = [
+        evidence("上涨家数占比", pct(advancer_ratio), "%", adv_score, 4, "宽度不足时，指数上涨容易变成少数主线行情。"),
+        evidence("行业上涨占比", pct(industry_up_ratio), "%", industry_score, 3, "行业扩散越充分，行情越健康。"),
+        evidence("个股中位数涨跌", median_pct_change, "%", median_score, 2.5, "中位数涨跌能直接衡量多数股票的真实赚钱效应。"),
+        evidence("强势股-弱势股占比差", pct(strong_spread), "%", strong_score, 2, "涨幅超3%多于跌幅超3%时，赚钱效应更扎实。"),
+        evidence("涨跌停结构", f"{int(limit_up)}/{int(limit_down)}", "涨停/跌停", limit_score, 2, "涨停多且跌停少代表情绪仍可用。"),
+        evidence("最高连板", max_streak, "板", streak_score, 1, "连板高度衡量短线风险偏好。"),
+        evidence("指数与宽度一致性", "", "", consistency_score, 0.5, "指数强但宽度弱时降分。"),
+    ]
+    strength = module_strength(score, "breadth")
+    if strength == "偏强":
+        summary = f"市场宽度偏强，上涨家数占比{pct(advancer_ratio) or '--'}%，个股中位数涨跌{signed_pct_text(median_pct_change)}。"
+    elif strength == "偏弱":
+        summary = f"市场宽度偏弱，上涨家数占比{pct(advancer_ratio) or '--'}%，赚钱效应扩散不足。"
+    else:
+        summary = f"市场宽度中性，上涨家数占比{pct(advancer_ratio) or '--'}%，赚钱效应仍偏结构性。"
+    return module_result("breadth", score, summary, evidences, metrics)
+
+
+def liquidity(snapshot: dict[str, Any]) -> dict[str, Any]:
+    indices = snapshot.get("market", {}).get("indices", {}) or {}
+    volume_values = [
+        as_float(row.get("volume_ratio_5d"))
+        for row in indices.values()
+        if as_float(row.get("volume_ratio_5d")) is not None
+    ]
+    avg_volume_ratio = mean(volume_values)
+    distribution = (snapshot.get("capital_flow", {}) or {}).get("turnover_distribution", {}) or {}
+    large_share = as_float((distribution.get("large_cap") or {}).get("share"))
+    mid_share = as_float((distribution.get("mid_cap") or {}).get("share")) or 0
+    small_share = as_float((distribution.get("small_cap") or {}).get("share")) or 0
+    active_share = mid_share + small_share
+
+    if avg_volume_ratio is None:
+        volume_score = 2.5
+    else:
+        volume_score = clamp(1 - abs(avg_volume_ratio - 1.08) / 0.45, 0, 1) * 5
+    active_score = scale(active_share, 0.5, 0.82, 3)
+    large_score = scale(large_share, 0.12, 0.35, 2)
+    score = volume_score + active_score + large_score
+
+    metrics = {
+        "avg_volume_ratio": metric("指数平均量能比", avg_volume_ratio, "倍", True),
+        "large_turnover_share_pct": metric("大盘成交占比", pct(large_share), "%", True),
+        "mid_turnover_share_pct": metric("中盘成交占比", pct(mid_share), "%", None),
+        "small_turnover_share_pct": metric("小盘成交占比", pct(small_share), "%", None),
+        "mid_small_turnover_share_pct": metric("中小盘成交占比", pct(active_share), "%", True),
+    }
+    evidences = [
+        evidence("指数平均量能比", avg_volume_ratio, "倍", volume_score, 5, "温和放量优于缩量或爆量。"),
+        evidence("中小盘成交占比", pct(active_share), "%", active_score, 3, "中小盘活跃代表风险偏好抬升。"),
+        evidence("大盘成交占比", pct(large_share), "%", large_score, 2, "大盘承接不足会降低趋势稳定性。"),
+    ]
+    strength = module_strength(score, "liquidity")
+    summary = f"成交与流动性{strength}，指数平均量能比{round2(avg_volume_ratio) or '--'}倍，中小盘成交占比{pct(active_share) or '--'}%。"
+    return module_result("liquidity", score, summary, evidences, metrics)
+
+
+def capital_flow(snapshot: dict[str, Any]) -> dict[str, Any]:
+    cap = snapshot.get("capital_flow", {}) or {}
+    rolling = rolling_market_features(snapshot).get("capital_flow", {}) or {}
+    north = as_float(cap.get("northbound_net_inflow_100m_cny"))
+    main = as_float(cap.get("main_net_inflow_100m_cny"))
+    north_5d = as_float(rolling.get("northbound_5d_sum_100m_cny"))
+    main_5d = as_float(rolling.get("main_5d_sum_100m_cny"))
+    north_sample_count = rolling.get("northbound_sample_count")
+    main_sample_count = rolling.get("main_sample_count")
+
+    north_score = scale(north, -50, 80, 3)
+    main_score = scale(main, -800, 300, 4)
+    if north is not None and main is not None and north > 0 and main < 0:
+        consistency_score = 0.9
+    elif north is not None and main is not None and north > 0 and main > 0:
+        consistency_score = 3.0
+    elif north is not None and main is not None and north < 0 and main < 0:
+        consistency_score = 0.5
+    else:
+        consistency_score = 1.5
+
+    north_5d_raw_score = scale(north_5d, -150, 250, 2)
+    main_5d_raw_score = scale(main_5d, -2500, 800, 3)
+    north_5d_score = cap_score_when_sample_short(north_5d_raw_score, 2, north_sample_count)
+    main_5d_score = cap_score_when_sample_short(main_5d_raw_score, 3, main_sample_count)
+
+    score = north_score + main_score + consistency_score + north_5d_score + main_5d_score
+    metrics = {
+        "northbound_net_inflow_100m_cny": metric("北向净流入", north, "亿元", True),
+        "main_net_inflow_100m_cny": metric("主力净流入", main, "亿元", True),
+        "northbound_5d_sum_100m_cny": metric("北向5日净流入", north_5d, "亿元", True),
+        "main_5d_sum_100m_cny": metric("主力5日净流入", main_5d, "亿元", True),
+        "northbound_5d_sample_count": metric("北向滚动样本数", north_sample_count, "日", True),
+        "main_5d_sample_count": metric("主力滚动样本数", main_sample_count, "日", True),
+        "flow_direction_pair": {
+            "label": "内外资方向",
+            "value": "同向流入" if north is not None and main is not None and north > 0 and main > 0 else "分歧或偏弱",
+            "unit": "",
+            "higher_is_better": True,
+        },
+    }
+    evidences = [
+        evidence("北向当日净流入", north, "亿元", north_score, 3, "外资当日方向对风险偏好有边际影响。"),
+        evidence("主力当日净流入", main, "亿元", main_score, 4, "主力资金代表内资承接和兑现压力。"),
+        evidence("内外资一致性", "", "", consistency_score, 3, "北向和主力同向时更可靠，背离时降分。"),
+        evidence("北向5日持续性", north_5d, "亿元", north_5d_score, 2, "样本少于4日时最多按中性持续性计分。"),
+        evidence("主力5日持续性", main_5d, "亿元", main_5d_score, 3, "样本少于4日时最多按中性资金确认计分。"),
+    ]
+    strength = module_strength(score, "capital_flow")
+    if north is not None and main is not None and north > 0 and main > 0:
+        direction = "内外资同向流入"
+    elif north is not None and main is not None and north > 0 and main < 0:
+        direction = "北向流入但主力流出"
+    elif north is not None and main is not None and north < 0 and main < 0:
+        direction = "内外资同向流出"
+    else:
+        direction = "内外资方向分歧或数据不完整"
+    summary = f"资金面{strength}，{direction}，5日样本北向{north_sample_count or 0}日、主力{main_sample_count or 0}日。"
+    return module_result("capital_flow", score, summary, evidences, metrics)
+
+
+def theme_group(name: str) -> str:
+    text = name or ""
+    if any(word in text for word in ["半导体", "电子", "光学", "消费电子"]):
+        return "电子半导体"
+    if any(word in text for word in ["通信", "计算机", "软件"]):
+        return "AI算力"
+    if any(word in text for word in ["建筑", "建材"]):
+        return "地产链"
+    if any(word in text for word in ["煤炭", "钢铁", "有色"]):
+        return "周期"
+    return text[:4] or "其他"
+
+
+def mainline(snapshot: dict[str, Any]) -> dict[str, Any]:
+    rotation = snapshot.get("sector_rotation", {}) or {}
+    rolling = rolling_market_features(snapshot).get("mainline", {}) or {}
+    top_returns = rotation.get("top5_industries_by_return", []) or []
+    top_flows = rotation.get("top5_industries_by_capital_inflow", []) or []
+    return_avg = mean([as_float(row.get("pct_change")) or 0 for row in top_returns]) or 0
+    top_flow_sum = sum(as_float(row.get("net_amount_100m_cny")) or 0 for row in top_flows)
+    top_flow_max = max([as_float(row.get("net_amount_100m_cny")) or 0 for row in top_flows] or [0])
+    concentration = top_flow_max / top_flow_sum if top_flow_sum else None
+    return_groups = {theme_group(row.get("industry", "")) for row in top_returns}
+    flow_groups = {theme_group(row.get("industry", "")) for row in top_flows}
+    overlap_count = len(return_groups & flow_groups)
+    flow_group_count = len(flow_groups)
+    repeat_ratio = as_float(rolling.get("current_group_repeat_ratio_5d"))
+    top_flow_5d = as_float(rolling.get("top_flow_5d_sum_100m_cny"))
+    rolling_sample_count = rolling.get("sample_count")
+
+    return_score = scale(return_avg, 0, 4, 3.5)
+    flow_score = scale(top_flow_sum, 0, 250, 3.5)
+    alignment_score = scale(overlap_count, 0, 2, 3)
+    breadth_score = scale(flow_group_count, 1, 4, 2)
+    continuity_raw_score = scale(repeat_ratio, 0.2, 0.8, 3)
+    continuity_score = cap_score_when_sample_short(continuity_raw_score, 3, rolling_sample_count)
+    score = return_score + flow_score + alignment_score + breadth_score + continuity_score
+
+    metrics = {
+        "top5_return_avg_pct": metric("涨幅前五行业均值", return_avg, "%", True),
+        "top5_industry_inflow_sum_100m_cny": metric("前五行业净流入合计", top_flow_sum, "亿元", True),
+        "top5_industry_inflow_5d_sum_100m_cny": metric("前五行业5日净流入合计", top_flow_5d, "亿元", True),
+        "price_flow_overlap_count": metric("价量重合主线数", overlap_count, "组", True),
+        "flow_group_count": metric("资金主线组数", flow_group_count, "组", True),
+        "current_group_repeat_ratio_5d_pct": metric("当前主线5日重复率", pct(repeat_ratio), "%", True),
+        "mainline_rolling_sample_count": metric("主线连续性样本数", rolling_sample_count, "日", True),
+        "top_flow_concentration_pct": metric("第一主线资金占比", pct(concentration), "%", False),
+    }
+    evidences = [
+        evidence("涨幅前五行业均值", return_avg, "%", return_score, 3.5, "领涨行业涨幅越强，主线越清晰。"),
+        evidence("前五行业净流入合计", top_flow_sum, "亿元", flow_score, 3.5, "资金集中流入说明主线有承接。"),
+        evidence("价量重合主线数", overlap_count, "组", alignment_score, 3, "涨幅榜和资金榜重合越高越可靠。"),
+        evidence("资金主线组数", flow_group_count, "组", breadth_score, 2, "主线过窄时降低扩仓质量。"),
+        evidence("当前主线5日重复率", pct(repeat_ratio), "%", continuity_score, 3, "样本少于4日时最多按中性连续性计分。"),
+    ]
+    strength = module_strength(score, "mainline")
+    if strength == "偏强":
+        summary = f"主线强度偏强，价量重合{overlap_count}组，前五行业净流入{round2(top_flow_sum) or 0}亿元。"
+    elif strength == "偏弱":
+        summary = f"主线强度偏弱，价量重合{overlap_count}组，资金和涨幅共振不足。"
+    else:
+        summary = f"主线强度中性，价量重合{overlap_count}组，仍以结构性机会为主。"
+    return module_result("mainline", score, summary, evidences, metrics)
+
+
+def valuation(snapshot: dict[str, Any]) -> dict[str, Any]:
+    valuation_data = snapshot.get("valuation") or snapshot.get("repricing") or {}
+    market = valuation_data.get("market", {}) or {}
+    indices = valuation_data.get("indices", {}) or {}
+    value_score_pct = as_float(market.get("valuation_score"))
+    pe_value_score = as_float(market.get("index_pe_value_score"))
+    pb_value_score = as_float(market.get("index_pb_value_score"))
+    erp_value_score = as_float(market.get("erp_value_score"))
+
+    if value_score_pct is None:
+        score = 7.5
+        summary = "估值数据缺失，按中性处理并降低置信度。"
+        metrics = {
+            "valuation_data_available": metric("估值数据可用", 0, "", True),
+            "neutral_valuation_score_pct": metric("中性估值分", 50, "%", None),
+            "valuation_index_count": metric("估值指数样本数", len(indices), "个", True),
+        }
+        evidences = [
+            evidence("估值分位", "缺失", "", 7.5, 15, "缺估值时不主观乐观，先给中性分。"),
+        ]
+    else:
+        composite_score = scale(value_score_pct, 0, 100, 6)
+        pe_score = scale(pe_value_score, 0, 100, 3)
+        pb_score = scale(pb_value_score, 0, 100, 3)
+        erp_score = scale(erp_value_score, 0, 100, 3) if erp_value_score is not None else 1.5
+        score = composite_score + pe_score + pb_score + erp_score
+        if value_score_pct >= 65:
+            summary = "宽基估值相对五年历史偏便宜，估值锚对中期仓位有支撑。"
+        elif value_score_pct <= 35:
+            summary = "宽基估值相对五年历史偏贵，趋势行情需要更强风控约束。"
+        else:
+            summary = "宽基估值处于中性区间，估值不构成明显加分或减分。"
+        metrics = {
+            "valuation_data_available": metric("估值数据可用", 1, "", True),
+            "market_valuation_score_pct": metric("市场估值便宜度", value_score_pct, "%", True),
+            "index_pe_value_score_pct": metric("PE便宜度", pe_value_score, "%", True),
+            "index_pb_value_score_pct": metric("PB便宜度", pb_value_score, "%", True),
+            "erp_value_score_pct": metric("股债性价比便宜度", erp_value_score, "%", True),
+            "valuation_index_count": metric("估值指数样本数", len(indices), "个", True),
+        }
+        evidences = [
+            evidence("综合估值便宜度", value_score_pct, "%", composite_score, 6, "分数越高代表相对五年分位越便宜。"),
+            evidence("PE便宜度", pe_value_score, "%", pe_score, 3, "盈利口径估值越低越有安全边际。"),
+            evidence("PB便宜度", pb_value_score, "%", pb_score, 3, "净资产口径用于约束泡沫风险。"),
+            evidence("股债性价比", erp_value_score if erp_value_score is not None else "缺失", "%", erp_score, 3, "缺少ERP时先给中性，后续可接入股债利差。"),
+        ]
+    return module_result("valuation", score, summary, evidences, metrics)
+
+
+def snapshot_basis_date(snapshot: dict[str, Any]) -> date | None:
+    return parse_date_value(snapshot.get("date") or (snapshot.get("market", {}) or {}).get("as_of_trade_date"))
+
+
+def dated_feature_is_future(snapshot: dict[str, Any], row: dict[str, Any] | None) -> bool:
+    if not isinstance(row, dict):
+        return False
+    basis = snapshot_basis_date(snapshot)
+    observation_date = parse_date_value(row.get("date") or row.get("trade_date") or row.get("observation_date"))
+    return bool(basis and observation_date and observation_date > basis)
+
+
+def macro_value_for_scoring(snapshot: dict[str, Any], row: dict[str, Any] | None, *keys: str) -> float | None:
+    if not isinstance(row, dict) or dated_feature_is_future(snapshot, row):
+        return None
+    for key in keys:
+        value = as_float(row.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def future_dated_feature_warnings(snapshot: dict[str, Any]) -> list[str]:
+    basis = snapshot_basis_date(snapshot)
+    if basis is None:
+        return []
+    macro_data = snapshot.get("macro", {}) or {}
+    rows: list[tuple[str, Any]] = [
+        ("macro.us_10y_treasury_yield_pct", macro_data.get("us_10y_treasury_yield_pct")),
+        ("macro.dxy", macro_data.get("dxy")),
+        ("macro.usd_cny", macro_data.get("usd_cny")),
+        ("macro.china_10y_government_bond_yield_pct", macro_data.get("china_10y_government_bond_yield_pct")),
+    ]
+    fred_rows = macro_data.get("fred_key_indicators", {}) or {}
+    if isinstance(fred_rows, dict):
+        rows.extend((f"macro.fred_key_indicators.{key}", value) for key, value in fred_rows.items())
+
+    warnings = []
+    for field_name, row in rows:
+        if not isinstance(row, dict):
+            continue
+        observation_date = parse_date_value(row.get("date") or row.get("trade_date") or row.get("observation_date"))
+        if observation_date and observation_date > basis:
+            warnings.append(
+                f"{field_name}: observation date {observation_date.isoformat()} is after "
+                f"basis_trade_date {basis.isoformat()}; excluded from scoring"
+            )
+    return warnings
+
+
+def rolling_sample_warnings(rolling: dict[str, Any]) -> list[str]:
+    checks = [
+        (
+            "capital_flow.northbound_5d_sum_100m_cny",
+            ((rolling.get("capital_flow", {}) or {}).get("northbound_sample_count")),
+        ),
+        (
+            "capital_flow.main_5d_sum_100m_cny",
+            ((rolling.get("capital_flow", {}) or {}).get("main_sample_count")),
+        ),
+        (
+            "breadth.advancer_ratio_5d_avg_pct",
+            ((rolling.get("breadth", {}) or {}).get("sample_count")),
+        ),
+        (
+            "mainline.current_group_repeat_ratio_5d",
+            ((rolling.get("mainline", {}) or {}).get("sample_count")),
+        ),
+    ]
+    warnings = []
+    for field_name, sample_count in checks:
+        count = as_float(sample_count)
+        if count is None or count < MIN_ROLLING_SAMPLE_COUNT:
+            shown_count = int(count) if count is not None else 0
+            warnings.append(
+                f"{field_name}: rolling sample insufficient "
+                f"({shown_count}/{MIN_ROLLING_SAMPLE_COUNT}); capped persistence score and lowered confidence"
+            )
+    return warnings
+
+
+def macro(snapshot: dict[str, Any]) -> dict[str, Any]:
+    macro_data = snapshot.get("macro", {}) or {}
+    us10 = macro_value_for_scoring(snapshot, macro_data.get("us_10y_treasury_yield_pct"), "value", "value_pct")
+    dxy = macro_value_for_scoring(snapshot, macro_data.get("dxy"), "value", "value_pct")
+    usd_cny = macro_value_for_scoring(snapshot, macro_data.get("usd_cny"), "value", "value_pct")
+    cn10_row = macro_data.get("china_10y_government_bond_yield_pct") or {}
+    cn10 = macro_value_for_scoring(snapshot, cn10_row, "value_pct", "value")
+
+    cn_score = scale(cn10, 3.0, 1.7, 4)
+    us_score = scale(us10, 5.0, 3.5, 2.5)
+    dxy_score = scale(dxy, 107, 96, 2)
+    cny_score = scale(usd_cny, 7.3, 6.7, 1.5)
+    score = cn_score + us_score + dxy_score + cny_score
+
+    metrics = {
+        "china_10y_yield_pct": metric("中国10Y国债", cn10, "%", False),
+        "us_10y_yield_pct": metric("美国10Y国债", us10, "%", False),
+        "dxy": metric("美元指数", dxy, "", False),
+        "usd_cny": metric("美元兑人民币", usd_cny, "", False),
+    }
+    evidences = [
+        evidence("中国10Y国债", cn10, "%", cn_score, 4, "国内利率低，对权益流动性有支撑。"),
+        evidence("美国10Y国债", us10, "%", us_score, 2.5, "海外利率高会压制成长资产估值。"),
+        evidence("美元指数", dxy, "", dxy_score, 2, "美元偏强时风险偏好承压。"),
+        evidence("美元兑人民币", usd_cny, "", cny_score, 1.5, "人民币稳定有利于外资和风险偏好。"),
+    ]
+    strength = module_strength(score, "macro")
+    if strength == "偏强":
+        summary = f"宏观与外部环境偏强，中国10Y为{round2(cn10) or '--'}%，美元指数{round2(dxy) or '--'}。"
+    elif strength == "偏弱":
+        summary = f"宏观与外部环境偏弱，美国10Y为{round2(us10) or '--'}%，美元或汇率压力较高。"
+    else:
+        summary = f"宏观与外部环境中性，中国10Y为{round2(cn10) or '--'}%，美元指数{round2(dxy) or '--'}。"
+    return module_result("macro", score, summary, evidences, metrics)
+
+
+def crowding_penalty(snapshot: dict[str, Any], modules: dict[str, Any]) -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    breadth = snapshot.get("breadth", {}) or {}
+    cap = snapshot.get("capital_flow", {}) or {}
+    rotation = snapshot.get("sector_rotation", {}) or {}
+    indices = snapshot.get("market", {}).get("indices", {}) or {}
+    valuation_market = ((snapshot.get("valuation") or snapshot.get("repricing") or {}).get("market", {}) or {})
+    volatility_market = (snapshot.get("volatility", {}) or {}).get("market", {}) or {}
+
+    advancers = as_float(breadth.get("advancers")) or 0
+    total = as_float(breadth.get("total")) or 0
+    advancer_ratio = advancers / total if total else None
+    if modules["index_trend"]["score"] >= 12:
+        breadth_penalty = penalty_scale(advancer_ratio, 0.45, 0.35, 5)
+        if breadth_penalty > 0:
+            items.append({"label": "指数强但上涨家数不足", "penalty": round2(breadth_penalty), "basis": f"上涨家数占比 {pct(advancer_ratio)}%"})
+
+    chinext = indices.get("399006.SZ", {})
+    chinext_ret5 = as_float(chinext.get("return_5d_pct"))
+    chinext_dev = as_float(chinext.get("ma20_deviation_pct"))
+    overheat_penalty = max(
+        penalty_scale(chinext_ret5, 4, 8, 4),
+        penalty_scale(chinext_dev, 3, 7, 4),
+    )
+    if overheat_penalty > 0:
+        items.append({"label": "成长方向短线过热", "penalty": round2(overheat_penalty), "basis": f"创业板5日 {round2(chinext_ret5)}%，MA20偏离 {round2(chinext_dev)}%"})
+
+    north = as_float(cap.get("northbound_net_inflow_100m_cny"))
+    main = as_float(cap.get("main_net_inflow_100m_cny"))
+    outflow_penalty = penalty_scale(main, -200, -600, 4) if north is not None and north > 0 else 0
+    if outflow_penalty > 0:
+        items.append({"label": "北向流入但主力大幅流出", "penalty": round2(outflow_penalty), "basis": f"北向 {round2(north)} 亿，主力 {round2(main)} 亿"})
+
+    top_flows = rotation.get("top5_industries_by_capital_inflow", []) or []
+    top_flow_sum = sum(as_float(row.get("net_amount_100m_cny")) or 0 for row in top_flows)
+    top_flow_max = max([as_float(row.get("net_amount_100m_cny")) or 0 for row in top_flows] or [0])
+    concentration = top_flow_max / top_flow_sum if top_flow_sum else None
+    concentration_penalty = penalty_scale(concentration, 0.55, 0.75, 3)
+    if concentration_penalty > 0:
+        items.append({"label": "资金过度集中在单一主线", "penalty": round2(concentration_penalty), "basis": f"第一主线资金占比 {pct(concentration)}%"})
+
+    valuation_score = as_float(valuation_market.get("valuation_score"))
+    valuation_bubble_penalty = penalty_scale(valuation_score, 35, 15, 5)
+    if valuation_bubble_penalty > 0:
+        items.append({"label": "全市场估值偏贵", "penalty": round2(valuation_bubble_penalty), "basis": f"估值便宜度 {round2(valuation_score)}%"})
+
+    realized_vol_30d = as_float(volatility_market.get("realized_vol_30d"))
+    volatility_penalty = penalty_scale(realized_vol_30d, 0.18, 0.32, 5)
+    if volatility_penalty > 0:
+        items.append({"label": "市场波动率偏高", "penalty": round2(volatility_penalty), "basis": f"30日年化波动 {pct(realized_vol_30d)}%"})
+
+    avg_volume_ratio = as_float((modules["liquidity"].get("metrics", {}).get("avg_volume_ratio", {}) or {}).get("value"))
+    liquidity_starvation_penalty = penalty_scale(avg_volume_ratio, 0.85, 0.65, 3)
+    if liquidity_starvation_penalty > 0:
+        items.append({"label": "流动性显著萎缩", "penalty": round2(liquidity_starvation_penalty), "basis": f"指数平均量能比 {round2(avg_volume_ratio)}"})
+
+    if valuation_score is None:
+        items.append({"label": "估值字段缺失", "penalty": 2, "basis": "估值与再定价模块按中性处理"})
+
+    penalty = round2(sum(as_float(item["penalty"]) or 0 for item in items)) or 0
+    return {
+        "penalty": penalty,
+        "items": items,
+        "metrics": {
+            "advancer_ratio_pct": metric("上涨家数占比", pct(advancer_ratio), "%", True),
+            "chinext_return_5d_pct": metric("创业板5日涨跌", chinext_ret5, "%", False),
+            "main_net_inflow_100m_cny": metric("主力净流入", main, "亿元", True),
+            "top_flow_concentration_pct": metric("第一主线资金占比", pct(concentration), "%", False),
+            "market_valuation_score_pct": metric("市场估值便宜度", valuation_score, "%", True),
+            "realized_vol_30d_pct": metric("30日年化波动率", pct(realized_vol_30d), "%", False),
+            "avg_volume_ratio": metric("指数平均量能比", avg_volume_ratio, "倍", True),
+        },
+    }
+
+
+def position_range(score: float) -> str:
+    if score <= 20:
+        return "0%-20%"
+    if score <= 35:
+        return "20%-40%"
+    if score <= 50:
+        return "40%-60%"
+    if score <= 65:
+        return "55%-75%"
+    if score <= 80:
+        return "75%-90%"
+    return "90%-100%"
+
+
+ALLOCATION_SLEEVE_ORDER = (
+    "beta_core",
+    "alpha_active",
+    "defensive_factor",
+    "liquidity",
+)
+
+
+ALLOCATION_SLEEVE_META = {
+    "beta_core": {
+        "label": "β核心仓（宽基ETF）",
+        "asset": "宽基ETF",
+        "role": "市场β底盘",
+        "driver": "风险资产总仓位、宽基趋势、估值分位、市场宽度",
+        "examples": ["沪深300ETF", "中证A500ETF", "中证500ETF", "纳指ETF"],
+    },
+    "alpha_active": {
+        "label": "α主动仓（行业ETF + 龙头个股）",
+        "asset": "主线行业ETF/龙头个股",
+        "role": "主动超额收益",
+        "driver": "主线强度、资金持续性、成交额、拥挤退潮风险",
+        "examples": ["半导体ETF", "人工智能ETF", "主线龙头", "细分龙头"],
+    },
+    "defensive_factor": {
+        "label": "防御因子仓（红利/低波/自由现金流）",
+        "asset": "红利低波/自由现金流/质量因子",
+        "role": "权益防御与质量暴露",
+        "driver": "风险偏好、利率环境、低波质量因子、相对抗跌",
+        "examples": ["红利低波ETF", "自由现金流ETF", "质量因子ETF"],
+    },
+    "liquidity": {
+        "label": "流动性仓（货币/短债）",
+        "asset": "货币/短债/现金管理",
+        "role": "等待权与回撤缓冲",
+        "driver": "风险上限、波动率、资金退潮、数据置信度",
+        "examples": ["货币基金", "短债基金", "短融ETF", "国债逆回购"],
+    },
+}
+
+
+def percent_range_midpoint(range_text: str | None) -> float | None:
+    parsed = parse_percent_range(range_text)
+    if parsed is None:
+        return None
+    return round2((parsed[0] + parsed[1]) / 2)
+
+
+def allocation_range(low: float, high: float) -> str:
+    low = clamp(low, 0, 100)
+    high = clamp(high, 0, 100)
+    if low > high:
+        low, high = high, low
+    return f"{round(low)}%-{round(high)}%"
+
+
+def module_pct_value(modules: dict[str, Any], key: str) -> float:
+    value = module_score_pct(modules, key)
+    return round2((value or 0) * 100) or 0
+
+
+def liquidity_range_from_risk_asset_range(total_range: str) -> str:
+    parsed = parse_percent_range(total_range)
+    if parsed is None:
+        return "0%-100%"
+    total_low, total_high = parsed
+    return allocation_range(100 - total_high, 100 - total_low)
+
+
+def clamp_share_range(value: list[float]) -> list[float]:
+    low = clamp(value[0], 0, 1)
+    high = clamp(value[1], 0, 1)
+    if low > high:
+        low, high = high, low
+    return [round(low, 4), round(high, 4)]
+
+
+def allocation_ranges_from_shares(total_range: str, shares: dict[str, list[float]]) -> dict[str, str]:
+    parsed = parse_percent_range(total_range)
+    if parsed is None:
+        return {key: "0%-0%" for key in shares}
+    total_low, total_high = parsed
+    total_mid = (total_low + total_high) / 2
+    total_half_width = max((total_high - total_low) / 2, 0)
+
+    clean_shares = {key: clamp_share_range(value) for key, value in shares.items()}
+    share_midpoints = {key: (value[0] + value[1]) / 2 for key, value in clean_shares.items()}
+    midpoint_sum = sum(share_midpoints.values()) or 1
+    normalized_midpoints = {key: value / midpoint_sum for key, value in share_midpoints.items()}
+
+    raw_widths = {key: max(value[1] - value[0], 0) for key, value in clean_shares.items()}
+    width_sum = sum(raw_widths.values()) or 1
+    width_shares = {key: raw_widths[key] / width_sum for key in clean_shares}
+
+    ranges: dict[str, str] = {}
+    for key in clean_shares:
+        sleeve_mid = total_mid * normalized_midpoints[key]
+        sleeve_half_width = total_half_width * width_shares[key]
+        ranges[key] = allocation_range(sleeve_mid - sleeve_half_width, sleeve_mid + sleeve_half_width)
+    return ranges
+
+
+def allocation_state(
+    position_score: float,
+    opportunity_score: float,
+    pre_cap_score: float,
+    modules: dict[str, Any],
+    crowding_penalty_value: float,
+    risk_caps: list[dict[str, Any]],
+) -> str:
+    risk_reasons = {str(cap.get("reason")) for cap in risk_caps if isinstance(cap, dict) and cap.get("reason")}
+    top_reasons = {
+        "bubble_top_combo",
+        "volume_blowoff_top",
+        "sector_concentration_top",
+        "extreme_expensive_valuation",
+        "extreme_high_volatility",
+        "capital_outflow_combo",
+    }
+    if opportunity_score >= 60 and (pre_cap_score - position_score >= 15 or risk_reasons & top_reasons or crowding_penalty_value >= 15):
+        return "高位过热风控"
+    if position_score <= 20:
+        return "防守期"
+    if position_score <= 35:
+        return "弱修复期"
+    if position_score <= 50:
+        return "震荡轮动期"
+    mainline_pct = module_pct_value(modules, "mainline")
+    breadth_pct = module_pct_value(modules, "breadth")
+    if position_score <= 65:
+        return "结构主线期" if mainline_pct >= 55 else "震荡轮动期"
+    if position_score <= 80:
+        return "趋势扩张期" if breadth_pct >= 50 else "结构主线期"
+    return "低拥挤强趋势期"
+
+
+def allocation_policy(
+    position_score: float,
+    opportunity_score: float,
+    pre_cap_score: float,
+    recommended_range: str,
+    modules: dict[str, Any],
+    crowding: dict[str, Any],
+    snapshot: dict[str, Any],
+    risk_caps: list[dict[str, Any]],
+    contrarian_overlay: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    crowding_penalty_value = as_float(crowding.get("penalty")) or 0
+    state = allocation_state(position_score, opportunity_score, pre_cap_score, modules, crowding_penalty_value, risk_caps)
+    overlay = contrarian_overlay if isinstance(contrarian_overlay, dict) else {}
+    overlay_active = bool(overlay.get("active"))
+    if overlay_active:
+        state = "深熊赔率期"
+    index_pct = module_pct_value(modules, "index_trend")
+    breadth_pct = module_pct_value(modules, "breadth")
+    liquidity_pct = module_pct_value(modules, "liquidity")
+    capital_pct = module_pct_value(modules, "capital_flow")
+    mainline_pct = module_pct_value(modules, "mainline")
+    valuation_pct = module_pct_value(modules, "valuation")
+    macro_pct = module_pct_value(modules, "macro")
+    risk_reasons = {str(cap.get("reason")) for cap in risk_caps if isinstance(cap, dict) and cap.get("reason")}
+    high_risk = bool(risk_caps) or crowding_penalty_value >= 12
+    strong_mainline = mainline_pct >= 65 and liquidity_pct >= 55
+    leader_enabled = strong_mainline and breadth_pct >= 45 and not high_risk
+    cheap_market = valuation_pct >= 65
+    expensive_market = valuation_pct <= 35
+
+    share_ranges = {
+        "防守期": {
+            "beta_core": [0.20, 0.40],
+            "alpha_active": [0.00, 0.08],
+            "defensive_factor": [0.55, 0.85],
+        },
+        "弱修复期": {
+            "beta_core": [0.35, 0.55],
+            "alpha_active": [0.05, 0.15],
+            "defensive_factor": [0.35, 0.55],
+        },
+        "深熊赔率期": {
+            "beta_core": [0.65, 0.85],
+            "alpha_active": [0.00, 0.08],
+            "defensive_factor": [0.15, 0.30],
+        },
+        "震荡轮动期": {
+            "beta_core": [0.42, 0.58],
+            "alpha_active": [0.12, 0.28],
+            "defensive_factor": [0.22, 0.38],
+        },
+        "结构主线期": {
+            "beta_core": [0.40, 0.55],
+            "alpha_active": [0.28, 0.45],
+            "defensive_factor": [0.10, 0.25],
+        },
+        "趋势扩张期": {
+            "beta_core": [0.42, 0.56],
+            "alpha_active": [0.32, 0.48],
+            "defensive_factor": [0.04, 0.16],
+        },
+        "低拥挤强趋势期": {
+            "beta_core": [0.42, 0.58],
+            "alpha_active": [0.35, 0.52],
+            "defensive_factor": [0.00, 0.12],
+        },
+        "高位过热风控": {
+            "beta_core": [0.35, 0.52],
+            "alpha_active": [0.05, 0.18],
+            "defensive_factor": [0.30, 0.55],
+        },
+    }
+    shares = {key: list(value) for key, value in share_ranges[state].items()}
+
+    if cheap_market and not overlay_active and state in {"弱修复期", "震荡轮动期"}:
+        shares["beta_core"][0] += 0.08
+        shares["beta_core"][1] += 0.08
+        shares["defensive_factor"][0] -= 0.05
+        shares["defensive_factor"][1] -= 0.05
+    if expensive_market or risk_reasons & {"expensive_valuation", "extreme_expensive_valuation", "bubble_top_combo"}:
+        shares["alpha_active"][1] = min(shares["alpha_active"][1], 0.22)
+        shares["defensive_factor"][0] += 0.08
+        shares["defensive_factor"][1] += 0.08
+    if mainline_pct < 45:
+        shares["alpha_active"][1] = min(shares["alpha_active"][1], 0.22)
+        shares["defensive_factor"][0] += 0.08
+    if leader_enabled:
+        shares["alpha_active"][0] = max(shares["alpha_active"][0], 0.25)
+        shares["alpha_active"][1] = max(shares["alpha_active"][1], 0.42)
+    if risk_reasons & {"capital_outflow_combo", "extreme_high_volatility", "high_volatility"}:
+        shares["alpha_active"][1] = min(shares["alpha_active"][1], 0.16)
+        shares["defensive_factor"][0] += 0.10
+        shares["defensive_factor"][1] += 0.10
+    if state == "高位过热风控":
+        shares["alpha_active"][1] = min(shares["alpha_active"][1], 0.18)
+    if overlay_active:
+        shares["alpha_active"][1] = min(shares["alpha_active"][1], 0.08)
+        shares["beta_core"][0] = max(shares["beta_core"][0], 0.65)
+        shares["beta_core"][1] = max(shares["beta_core"][1], 0.80)
+
+    shares = {key: clamp_share_range(value) for key, value in shares.items()}
+    target_ranges = allocation_ranges_from_shares(recommended_range, shares)
+    target_ranges["liquidity"] = liquidity_range_from_risk_asset_range(recommended_range)
+
+    sleeve_items: list[dict[str, Any]] = []
+    for key in ALLOCATION_SLEEVE_ORDER:
+        meta = ALLOCATION_SLEEVE_META[key]
+        range_text = target_ranges[key]
+        sleeve_items.append(
+            {
+                "key": key,
+                "label": meta["label"],
+                "name": meta["label"],
+                "asset": meta["asset"],
+                "role": meta["role"],
+                "driver": meta["driver"],
+                "examples": meta["examples"],
+                "target_range": range_text,
+                "midpoint": percent_range_midpoint(range_text),
+            }
+        )
+
+    triggers = [
+        f"指数趋势 {index_pct}%，宽度 {breadth_pct}%，主线 {mainline_pct}%，资金 {capital_pct}%。",
+        f"估值便宜度 {valuation_pct}%，宏观环境 {macro_pct}%，拥挤惩罚 {round2(crowding_penalty_value)}。",
+        f"风险资产总区间 {recommended_range}；流动性仓 = 100% - 风险资产总仓位。",
+    ]
+    if risk_caps:
+        labels = "、".join(str(cap.get("reason")) for cap in risk_caps if isinstance(cap, dict))
+        triggers.append(f"风险上限已触发：{labels}。")
+    if overlay_active:
+        triggers.append(
+            f"深熊赔率逆向模块生效：仓位分抬高 {overlay.get('add_score')}，只提高 β核心仓，不开放 α主动仓。"
+        )
+    if leader_enabled:
+        triggers.append("主线强、成交与宽度配合，α主动仓可提高；其中龙头个股仍应受 α 仓内部上限约束。")
+    else:
+        triggers.append("α主动仓未充分打开：需要主线强度、成交持续和宽度同时确认。")
+
+    return {
+        "version": ALLOCATION_POLICY_VERSION,
+        "account_scope": "stock_account",
+        "state": state,
+        "total_risk_asset_range": recommended_range,
+        "risk_asset_formula": "beta_core + alpha_active + defensive_factor",
+        "liquidity_formula": "100% - total_risk_asset_range",
+        "risk_asset_share_ranges": shares,
+        "contrarian_beta_overlay": overlay or {"active": False},
+        "beta_core_overlay_only": overlay_active,
+        "alpha_active_components": {
+            "industry_theme_etf": "α主动仓基础部分，承接主线行业和主题 ETF。",
+            "leader_stock": "α主动仓增强部分，只在主线、成交和宽度确认时开放。",
+            "leader_stock_internal_cap": "龙头个股合计建议不超过 α主动仓的 30%-40%，退潮时优先收缩。",
+        },
+        "score_inputs": {
+            "market_position_score": round2(position_score),
+            "market_opportunity_score": round2(opportunity_score),
+            "pre_cap_market_position_score": round2(pre_cap_score),
+            "crowding_penalty": round2(crowding_penalty_value),
+            "index_trend_score_pct": index_pct,
+            "breadth_score_pct": breadth_pct,
+            "liquidity_score_pct": liquidity_pct,
+            "capital_flow_score_pct": capital_pct,
+            "mainline_score_pct": mainline_pct,
+            "valuation_score_pct": valuation_pct,
+            "macro_score_pct": macro_pct,
+        },
+        "principles": [
+            "风险资产总仓位由最终仓位分决定，β核心仓、α主动仓、防御因子仓共享这部分风险资产。",
+            "β核心仓只承接宽基 ETF，不承担主线押注任务。",
+            "α主动仓合并主线行业 ETF 和龙头个股，主线退潮或高波动时最先收缩。",
+            "防御因子仓仍是权益资产，承担红利、低波、自由现金流和质量因子暴露。",
+            "流动性仓承接未配置风险资产，是现金管理和再平衡弹药。",
+        ],
+        "sleeves": sleeve_items,
+        "triggers": triggers,
+        "notes": [
+            "所有比例为股票账户内部配置区间，不代表总资产配置。",
+            "单个 ETF、行业、个股仍需由标的研究系统单独确认；本模块只做市场层资金分配。",
+            "旧 allocation_policy_v1 的主线 ETF 与龙头仓在展示层会折算为 α主动仓。",
+        ],
+    }
+
+
+def normalize_annual_vol(value: Any) -> float | None:
+    number = as_float(value)
+    if number is None:
+        return None
+    if number > 1:
+        return number / 100
+    return number
+
+
+def data_quality_with_warnings(data_quality: dict[str, Any] | None) -> dict[str, Any]:
+    result = dict(data_quality or {})
+    warnings = result.get("warnings", [])
+    if isinstance(warnings, list):
+        result["warnings"] = list(warnings)
+    elif warnings:
+        result["warnings"] = [str(warnings)]
+    else:
+        result["warnings"] = []
+    return result
+
+
+def add_quality_warning(data_quality: dict[str, Any], warning: str) -> None:
+    warnings = data_quality.setdefault("warnings", [])
+    if warning not in warnings:
+        warnings.append(warning)
+
+
+def module_score_pct(modules: dict[str, Any], key: str) -> float | None:
+    module = modules.get(key, {}) or {}
+    score_pct = as_float(module.get("score_pct"))
+    if score_pct is not None:
+        return score_pct / 100 if score_pct > 1 else score_pct
+    score = as_float(module.get("score"))
+    weight = as_float(module.get("weight")) or as_float(MODULES.get(key, {}).get("weight"))
+    if score is None or not weight:
+        return None
+    return clamp(score / weight, 0, 1)
+
+
+def valuation_data_missing(snapshot: dict[str, Any], data_quality: dict[str, Any]) -> bool:
+    valuation_market = ((snapshot.get("valuation") or snapshot.get("repricing") or {}).get("market", {}) or {})
+    return as_float(valuation_market.get("valuation_score")) is None
+
+
+def volatility_data_missing(snapshot: dict[str, Any], data_quality: dict[str, Any]) -> bool:
+    volatility_market = (snapshot.get("volatility", {}) or {}).get("market", {}) or {}
+    return normalize_annual_vol(volatility_market.get("realized_vol_30d")) is None
+
+
+def risk_cap(reason: str, score_cap: float, severity: str, evidence_data: dict[str, Any], message: str) -> dict[str, Any]:
+    if reason not in STABLE_RISK_CAP_REASONS:
+        raise ValueError(f"risk_cap reason is frozen in {MODEL_VERSION}: {reason}")
+    return {
+        "reason": reason,
+        "score_cap": round2(score_cap),
+        "severity": severity,
+        "evidence": evidence_data,
+        "message": message,
+    }
+
+
+def risk_cap_strictness_key(indexed_cap: tuple[int, dict[str, Any]]) -> tuple[float, int, int, str]:
+    index, cap = indexed_cap
+    score_cap = as_float(cap.get("score_cap"))
+    severity_rank = RISK_CAP_SEVERITY_RANK.get(str(cap.get("severity")), 0)
+    return (score_cap if score_cap is not None else 101, -severity_rank, index, str(cap.get("reason") or ""))
+
+
+def resolve_risk_caps(caps: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    indexed_caps = [
+        (index, cap)
+        for index, cap in enumerate(caps)
+        if isinstance(cap, dict) and as_float(cap.get("score_cap")) is not None
+    ]
+    if not indexed_caps:
+        return None, []
+
+    applied_index, applied_cap = sorted(indexed_caps, key=risk_cap_strictness_key)[0]
+    applied = dict(applied_cap)
+    applied["applied"] = True
+    applied["priority_basis"] = "lowest_score_cap_then_highest_severity"
+    discarded: list[dict[str, Any]] = []
+    for index, cap in indexed_caps:
+        if index == applied_index:
+            continue
+        item = dict(cap)
+        item["discarded_by"] = applied.get("reason")
+        item["priority_basis"] = "covered_by_stricter_score_cap_or_severity_tie_break"
+        discarded.append(item)
+    return applied, discarded
+
+
+def evaluate_risk_caps(
+    pre_cap_score: float,
+    opportunity_score: float,
+    crowding_penalty_value: float,
+    modules: dict[str, Any],
+    snapshot: dict[str, Any],
+    data_quality: dict[str, Any],
+) -> list[dict[str, Any]]:
+    caps: list[dict[str, Any]] = []
+    valuation_score_pct = module_score_pct(modules, "valuation")
+    realized_volatility = normalize_annual_vol(((snapshot.get("volatility", {}) or {}).get("market", {}) or {}).get("realized_vol_30d"))
+    valuation_missing = valuation_data_missing(snapshot, data_quality)
+    volatility_missing = volatility_data_missing(snapshot, data_quality)
+    index_trend_score_pct = module_score_pct(modules, "index_trend")
+    breadth_score_pct = module_score_pct(modules, "breadth")
+    mainline_score_pct = module_score_pct(modules, "mainline")
+    liquidity_metrics = (modules.get("liquidity", {}) or {}).get("metrics", {}) or {}
+    avg_volume_ratio = as_float((liquidity_metrics.get("avg_volume_ratio", {}) or {}).get("value"))
+
+    evidence_base = {
+        "pre_cap_market_position_score": round2(pre_cap_score),
+        "opportunity_score": round2(opportunity_score),
+        "crowding_penalty": round2(crowding_penalty_value),
+        "valuation_score_pct": round2(valuation_score_pct),
+        "realized_volatility_30d": round2(realized_volatility),
+    }
+    capital_flow_data = snapshot.get("capital_flow", {}) or {}
+    northbound_net = as_float(capital_flow_data.get("northbound_net_inflow_100m_cny"))
+    main_net = as_float(capital_flow_data.get("main_net_inflow_100m_cny"))
+    turnover_distribution = capital_flow_data.get("turnover_distribution", {}) or {}
+    turnover_values = [
+        as_float((turnover_distribution.get(bucket) or {}).get("turnover_100m_cny"))
+        for bucket in ["large_cap", "mid_cap", "small_cap"]
+    ]
+    known_turnover_values = [value for value in turnover_values if value is not None]
+    total_turnover_100m = sum(known_turnover_values) if known_turnover_values else None
+    rotation = snapshot.get("sector_rotation", {}) or {}
+    top_flows = rotation.get("top5_industries_by_capital_inflow", []) or []
+    positive_flow_rows = [
+        (row, as_float(row.get("net_amount_100m_cny")))
+        for row in top_flows
+        if as_float(row.get("net_amount_100m_cny")) is not None and as_float(row.get("net_amount_100m_cny")) > 0
+    ]
+    top_flow_sum = sum(value for _, value in positive_flow_rows)
+    top_flow_row, top_flow_max = max(positive_flow_rows, key=lambda item: item[1]) if positive_flow_rows else ({}, None)
+    top_flow_concentration = top_flow_max / top_flow_sum if top_flow_sum and top_flow_max is not None else None
+    top_returns = rotation.get("top5_industries_by_return", []) or []
+    positive_return_rows = [
+        (row, as_float(row.get("pct_change")))
+        for row in top_returns
+        if as_float(row.get("pct_change")) is not None and as_float(row.get("pct_change")) > 0
+    ]
+    top_return_sum = sum(value for _, value in positive_return_rows)
+    top_return_row, top_return_max = max(positive_return_rows, key=lambda item: item[1]) if positive_return_rows else ({}, None)
+    top_return_concentration = top_return_max / top_return_sum if top_return_sum and top_return_max is not None else None
+
+    if crowding_penalty_value >= 20:
+        caps.append(
+            risk_cap(
+                "high_crowding_extreme",
+                50,
+                "high",
+                evidence_base,
+                "拥挤惩罚达到极高区间，股票账户仓位分上限限制为50。",
+            )
+        )
+    elif crowding_penalty_value >= 15:
+        caps.append(
+            risk_cap(
+                "high_crowding",
+                60,
+                "medium",
+                evidence_base,
+                "拥挤惩罚偏高，股票账户仓位分上限限制为60。",
+            )
+        )
+
+    extreme_volume = (
+        (avg_volume_ratio is not None and avg_volume_ratio >= 1.45)
+        or (total_turnover_100m is not None and total_turnover_100m >= 25000)
+    )
+    elevated_valuation_or_volatility = (
+        (valuation_score_pct is not None and valuation_score_pct <= 0.35)
+        or (realized_volatility is not None and realized_volatility >= 0.25)
+    )
+    hot_trend_context = opportunity_score >= 65 or (index_trend_score_pct is not None and index_trend_score_pct >= 0.75)
+    if extreme_volume and elevated_valuation_or_volatility and hot_trend_context:
+        caps.append(
+            risk_cap(
+                "volume_blowoff_top",
+                45,
+                "high",
+                {
+                    **evidence_base,
+                    "avg_volume_ratio": round2(avg_volume_ratio),
+                    "total_turnover_100m_cny": round2(total_turnover_100m),
+                    "index_trend_score_pct": round2(index_trend_score_pct),
+                    "extreme_volume": bool(extreme_volume),
+                    "elevated_valuation_or_volatility": bool(elevated_valuation_or_volatility),
+                },
+                "成交额或换手极端放量，且估值或波动已偏高，爆量顶部风险触发仓位分上限。",
+            )
+        )
+
+    high_sector_flow_concentration = (
+        top_flow_concentration is not None
+        and top_flow_concentration >= 0.70
+        and top_flow_sum >= 200
+    )
+    high_sector_return_concentration = (
+        top_return_concentration is not None
+        and top_return_concentration >= 0.55
+        and top_return_max is not None
+        and top_return_max >= 4
+    )
+    hot_mainline_context = opportunity_score >= 60 or (mainline_score_pct is not None and mainline_score_pct >= 0.65)
+    if (
+        (high_sector_flow_concentration or high_sector_return_concentration)
+        and elevated_valuation_or_volatility
+        and hot_mainline_context
+    ):
+        caps.append(
+            risk_cap(
+                "sector_concentration_top",
+                50,
+                "high",
+                {
+                    **evidence_base,
+                    "mainline_score_pct": round2(mainline_score_pct),
+                    "top_flow_industry": top_flow_row.get("industry"),
+                    "top_flow_amount_100m_cny": round2(top_flow_max),
+                    "top5_flow_sum_100m_cny": round2(top_flow_sum),
+                    "top_flow_concentration_ratio": round2(top_flow_concentration),
+                    "top_return_industry": top_return_row.get("industry"),
+                    "top_return_pct": round2(top_return_max),
+                    "top5_positive_return_sum_pct": round2(top_return_sum),
+                    "top_return_concentration_ratio": round2(top_return_concentration),
+                },
+                "前五行业资金或涨幅高度集中，且估值或波动偏高，主线拥挤顶部风险触发仓位分上限。",
+            )
+        )
+
+    if northbound_net is not None and main_net is not None and northbound_net <= -50 and main_net <= -800:
+        caps.append(
+            risk_cap(
+                "capital_outflow_combo",
+                55,
+                "high",
+                {
+                    **evidence_base,
+                    "northbound_net_inflow_100m_cny": round2(northbound_net),
+                    "main_net_inflow_100m_cny": round2(main_net),
+                },
+                "北向与主力资金同时大幅流出，资金退潮风险触发仓位分上限。",
+            )
+        )
+
+    if valuation_score_pct is not None and valuation_score_pct <= 0.15:
+        caps.append(
+            risk_cap(
+                "extreme_expensive_valuation",
+                50,
+                "high",
+                evidence_base,
+                "估值模块得分极低，泡沫估值风险触发仓位分上限。",
+            )
+        )
+    elif valuation_score_pct is not None and valuation_score_pct <= 0.25:
+        caps.append(
+            risk_cap(
+                "expensive_valuation",
+                55,
+                "medium",
+                evidence_base,
+                "估值模块得分偏低，股票账户仓位分上限限制为55。",
+            )
+        )
+
+    if valuation_score_pct is not None and valuation_score_pct <= 0.25 and realized_volatility is not None and realized_volatility >= 0.25:
+        caps.append(
+            risk_cap(
+                "bubble_top_combo",
+                35,
+                "high",
+                evidence_base,
+                "估值极贵且波动率偏高，泡沫顶部风险触发强仓位上限。",
+            )
+        )
+
+    if realized_volatility is not None and realized_volatility >= 0.40:
+        caps.append(
+            risk_cap(
+                "extreme_high_volatility",
+                35,
+                "high",
+                evidence_base,
+                "30日年化波动率进入极高区间，股票账户仓位分上限限制为35。",
+            )
+        )
+    elif realized_volatility is not None and realized_volatility >= 0.30:
+        caps.append(
+            risk_cap(
+                "high_volatility",
+                55,
+                "medium",
+                evidence_base,
+                "30日年化波动率偏高，股票账户仓位分上限限制为55。",
+            )
+        )
+
+    if opportunity_score >= 70 and valuation_missing:
+        add_quality_warning(data_quality, "valuation data missing; stock account position capped")
+        caps.append(
+            risk_cap(
+                "missing_valuation_data_hot_market",
+                65,
+                "medium",
+                evidence_base,
+                "高机会分行情缺少估值数据，股票账户仓位分上限限制为65。",
+            )
+        )
+    if opportunity_score >= 70 and volatility_missing:
+        add_quality_warning(data_quality, "volatility data missing; stock account position capped")
+        caps.append(
+            risk_cap(
+                "missing_volatility_data_hot_market",
+                65,
+                "medium",
+                evidence_base,
+                "高机会分行情缺少波动率数据，股票账户仓位分上限限制为65。",
+            )
+        )
+    if opportunity_score >= 65 and valuation_missing and volatility_missing:
+        add_quality_warning(data_quality, "valuation and volatility data missing; stock account position capped")
+        caps.append(
+            risk_cap(
+                "missing_core_risk_data_hot_market",
+                50,
+                "high",
+                evidence_base,
+                "高机会分行情同时缺少估值和波动率，股票账户仓位分上限限制为50。",
+            )
+        )
+
+    if (
+        index_trend_score_pct is not None
+        and breadth_score_pct is not None
+        and index_trend_score_pct >= 0.75
+        and breadth_score_pct <= 0.40
+    ):
+        caps.append(
+            risk_cap(
+                "strong_index_weak_breadth",
+                60,
+                "medium",
+                {
+                    **evidence_base,
+                    "index_trend_score_pct": round2(index_trend_score_pct),
+                    "breadth_score_pct": round2(breadth_score_pct),
+                },
+                "指数趋势强但市场宽度弱，局部抱团风险触发仓位分上限。",
+            )
+        )
+
+    return caps
+
+
+def drawdown_depth_features(snapshot: dict[str, Any]) -> dict[str, Any]:
+    indices = ((snapshot.get("volatility", {}) or {}).get("indices", {}) or {})
+    items: list[dict[str, Any]] = []
+    for code, payload in indices.items():
+        if not isinstance(payload, dict):
+            continue
+        drawdown = as_float(payload.get("drawdown_60d_pct"))
+        if drawdown is None:
+            continue
+        depth = max(0.0, -drawdown)
+        items.append({"code": code, "drawdown_60d_pct": round2(drawdown), "depth_pct": round2(depth)})
+
+    depths = [as_float(item.get("depth_pct")) or 0 for item in items]
+    return {
+        "available": bool(depths),
+        "worst_depth_pct": round2(max(depths)) if depths else None,
+        "average_depth_pct": round2(mean(depths)) if depths else None,
+        "indices": items,
+    }
+
+
+def contrarian_beta_overlay(
+    opportunity_score: float,
+    crowding: dict[str, Any],
+    modules: dict[str, Any],
+    snapshot: dict[str, Any],
+    risk_engine: dict[str, Any],
+    current_score: float,
+) -> dict[str, Any]:
+    valuation_raw = as_float((((snapshot.get("valuation", {}) or {}).get("market", {}) or {}).get("valuation_score")))
+    drawdown = drawdown_depth_features(snapshot)
+    worst_depth = as_float(drawdown.get("worst_depth_pct"))
+    average_depth = as_float(drawdown.get("average_depth_pct"))
+    breadth = snapshot.get("breadth", {}) or {}
+    total = as_float(breadth.get("total"))
+    advancers = as_float(breadth.get("advancers"))
+    advancer_ratio = advancers / total if total and advancers is not None and total > 0 else None
+    strong_decliners = as_float(breadth.get("strong_decliners_lt_minus3_pct"))
+    if strong_decliners is not None and strong_decliners > 1:
+        strong_decliners = strong_decliners / 100
+    limit_down = as_float(breadth.get("limit_down"))
+    capital = snapshot.get("capital_flow", {}) or {}
+    northbound = as_float(capital.get("northbound_net_inflow_100m_cny"))
+    main_net = as_float(capital.get("main_net_inflow_100m_cny"))
+    realized_vol = normalize_annual_vol(((snapshot.get("volatility", {}) or {}).get("market", {}) or {}).get("realized_vol_30d"))
+    crowding_penalty_value = as_float(crowding.get("penalty")) or 0
+    mainline_pct = module_pct_value(modules, "mainline")
+
+    valuation_component = scale(valuation_raw, 60, 90, 30)
+    drawdown_component = scale(worst_depth, 10, 24, 30)
+    capitulation_component = (
+        scale(advancer_ratio, 0.45, 0.20, 8)
+        + scale(strong_decliners, 0.08, 0.25, 7)
+        + scale(limit_down, 5, 60, 5)
+    )
+    stabilization_component = (
+        scale(main_net, -900, -150, 8)
+        + scale(northbound, -80, 30, 6)
+        + scale(realized_vol, 0.48, 0.28, 6)
+    )
+    intensity_score = round2(
+        clamp(valuation_component + drawdown_component + capitulation_component + stabilization_component, 0, 100)
+    ) or 0
+
+    blockers: list[str] = []
+    if valuation_raw is None:
+        blockers.append("估值便宜度缺失，不能确认深熊赔率。")
+    elif valuation_raw < 60:
+        blockers.append(f"估值便宜度 {round2(valuation_raw)}%，未达到深熊逆向阈值 60%。")
+    if worst_depth is None:
+        blockers.append("指数60日回撤缺失，不能确认深回撤。")
+    elif worst_depth < 10:
+        blockers.append(f"指数最深60日回撤 {round2(worst_depth)}%，未达到 10% 深回撤阈值。")
+    if crowding_penalty_value > 10:
+        blockers.append(f"拥挤惩罚 {round2(crowding_penalty_value)}，不适合左侧扩仓。")
+    if opportunity_score > 65 or mainline_pct > 70:
+        blockers.append("机会分或主线强度已经偏热，逆向模块不追高。")
+    if advancer_ratio is None or strong_decliners is None:
+        blockers.append("宽度或强弱个股结构缺失，不能确认恐慌出清。")
+    if main_net is None or northbound is None:
+        blockers.append("主力或北向资金字段缺失，不能确认资金没有踩踏。")
+    if main_net is not None and northbound is not None and main_net <= -1000 and northbound <= -50:
+        blockers.append("主力与北向同时大幅流出，资金踩踏时不启用逆向加仓。")
+    if realized_vol is None:
+        blockers.append("30日波动率缺失，不能确认尾部风险状态。")
+    if realized_vol is not None and realized_vol >= 0.50:
+        blockers.append(f"30日年化波动率 {round2(realized_vol * 100)}%，尾部风险过高。")
+    if intensity_score < 55:
+        blockers.append(f"深熊赔率强度 {intensity_score}，未达到 55 的启用阈值。")
+
+    active = not blockers
+    score_floor = round2(35 + scale(intensity_score, 55, 85, 25)) if active else None
+    target_score = round2(max(current_score, score_floor or current_score)) or round2(current_score) or 0
+    add_score = round2(max(0.0, target_score - current_score)) or 0
+    drivers = [
+        f"估值便宜度 {round2(valuation_raw)}%，指数最深60日回撤 {round2(worst_depth)}%，平均回撤 {round2(average_depth)}%。",
+        f"上涨家数占比 {round2((advancer_ratio or 0) * 100) if advancer_ratio is not None else None}%，跌超3%占比 {round2((strong_decliners or 0) * 100) if strong_decliners is not None else None}%。",
+        f"北向净流入 {round2(northbound)} 亿元，主力净流入 {round2(main_net)} 亿元，30日年化波动 {round2((realized_vol or 0) * 100) if realized_vol is not None else None}%。",
+        "逆向加仓只抬 β核心仓宽基 ETF，不解锁 α主动仓，不用于个股或主线追涨。",
+    ]
+
+    return {
+        "version": "contrarian_beta_overlay_v1",
+        "active": active,
+        "mode": "beta_core_floor",
+        "intensity_score": intensity_score,
+        "score_floor": score_floor,
+        "current_score_before_overlay": round2(current_score),
+        "target_score": target_score,
+        "add_score": add_score,
+        "beta_core_only": True,
+        "alpha_active_unlocked": False,
+        "drivers": drivers if active else [],
+        "blockers": [] if active else blockers,
+        "inputs": {
+            "valuation_score": round2(valuation_raw),
+            "worst_drawdown_60d_pct": round2(worst_depth),
+            "average_drawdown_60d_pct": round2(average_depth),
+            "advancer_ratio_pct": round2(advancer_ratio * 100) if advancer_ratio is not None else None,
+            "strong_decliners_lt_minus3_pct": round2(strong_decliners * 100) if strong_decliners is not None else None,
+            "limit_down": round2(limit_down),
+            "northbound_net_inflow_100m_cny": round2(northbound),
+            "main_net_inflow_100m_cny": round2(main_net),
+            "realized_vol_30d_pct": round2(realized_vol * 100) if realized_vol is not None else None,
+            "crowding_penalty": round2(crowding_penalty_value),
+            "risk_level": risk_engine.get("risk_level"),
+        },
+        "components": {
+            "valuation": round2(valuation_component),
+            "drawdown": round2(drawdown_component),
+            "capitulation": round2(capitulation_component),
+            "stabilization": round2(stabilization_component),
+        },
+        "drawdown": drawdown,
+    }
+
+
+def trend_multiplier(trend_layer: dict[str, Any] | None) -> tuple[float, str]:
+    state = (trend_layer or {}).get("trend_state")
+    if state == "strong_trend":
+        return 1.10, "强趋势提高仓位承载。"
+    if state == "early_trend":
+        return 1.02, "趋势初期小幅提高试探仓位。"
+    if state == "late_trend":
+        return 0.90, "趋势末期降低追高仓位。"
+    if state == "weakening_trend":
+        return 0.78, "趋势转弱明显降低仓位承载。"
+    return 1.0, "趋势结构不足，保持中性乘数。"
+
+
+def regime_multiplier(regime_layer: dict[str, Any] | None) -> tuple[float, str]:
+    regime_code = (regime_layer or {}).get("regime")
+    if regime_code == "accumulation":
+        return 1.05, "底部吸筹区制允许小幅提高左侧仓位。"
+    if regime_code == "expansion":
+        return 1.12, "主升扩张区制提高风险资产承载。"
+    if regime_code == "distribution":
+        return 0.82, "高位派发区制降低仓位，避免越热越追。"
+    if regime_code == "contraction":
+        return 0.70, "下行收缩区制明显降低仓位。"
+    return 1.0, "区制不足，保持中性乘数。"
+
+
+def build_position_model(
+    base_score: float,
+    risk_engine: dict[str, Any],
+    regime_layer: dict[str, Any] | None,
+    trend_layer: dict[str, Any] | None,
+) -> dict[str, Any]:
+    trend_mult, trend_note = trend_multiplier(trend_layer)
+    regime_mult, regime_note = regime_multiplier(regime_layer)
+    risk_discount_value = as_float(risk_engine.get("risk_discount"))
+    if risk_discount_value is None:
+        risk_discount_value = 1.0
+    raw_score = base_score * trend_mult * regime_mult * risk_discount_value
+    adjusted_score = round2(clamp(raw_score, 0, 100)) or 0
+    return {
+        "version": "position_model_v1",
+        "formula": "base_position_score * trend_multiplier * regime_multiplier * risk_discount",
+        "base_position_score": round2(base_score),
+        "trend_multiplier": round2(trend_mult),
+        "regime_multiplier": round2(regime_mult),
+        "risk_discount": round2(risk_discount_value),
+        "adjusted_position_score": adjusted_score,
+        "factors": {
+            "trend": {
+                "state": (trend_layer or {}).get("trend_state"),
+                "label": (trend_layer or {}).get("label"),
+                "multiplier": round2(trend_mult),
+                "note": trend_note,
+            },
+            "regime": {
+                "regime": (regime_layer or {}).get("regime"),
+                "label": (regime_layer or {}).get("label"),
+                "multiplier": round2(regime_mult),
+                "note": regime_note,
+            },
+            "risk": {
+                "risk_penalty_score": risk_engine.get("risk_penalty_score"),
+                "risk_level": risk_engine.get("risk_level"),
+                "discount": round2(risk_discount_value),
+                "note": "连续风险分先平滑折扣仓位，硬性风险上限只做兜底。",
+            },
+        },
+    }
+
+
+def build_decision_explain(
+    base_score: float,
+    risk_adjusted_score: float,
+    pre_cap_score: float,
+    final_score: float,
+    position_model: dict[str, Any],
+    risk_engine: dict[str, Any],
+    risk_caps: list[dict[str, Any]],
+    applied_cap: dict[str, Any] | None,
+    contrarian_overlay: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    factors = position_model.get("factors", {}) if isinstance(position_model.get("factors"), dict) else {}
+    overlay = contrarian_overlay if isinstance(contrarian_overlay, dict) else {}
+    why = [
+        f"基础仓位分 {round2(base_score)} 由机会分扣除拥挤惩罚得到。",
+        f"乘数和风险折扣后仓位分 {round2(risk_adjusted_score)}，扣上限前仓位分 {round2(pre_cap_score)}，最终仓位分 {round2(final_score)}。",
+    ]
+    if overlay.get("active"):
+        why.append(
+            f"深熊赔率逆向模块生效：仓位分地板 {overlay.get('score_floor')}，抬高 {overlay.get('add_score')}，只用于 β核心仓。"
+        )
+    if applied_cap:
+        why.append(f"硬性风险上限 {applied_cap.get('reason')} 生效，上限 {applied_cap.get('score_cap')}。")
+    elif risk_caps:
+        why.append("存在风险上限信号，但连续风险折扣后仓位已经不高于最严格上限。")
+    else:
+        why.append("未触发硬性风险上限，最终仓位由乘数模型决定。")
+    return {
+        "version": "decision_explain_v1",
+        "why_position_changed": why,
+        "risk_factors": [
+            f"连续风险分 {risk_engine.get('risk_penalty_score')}，风险等级 {risk_engine.get('risk_level')}，折扣 {risk_engine.get('risk_discount')}。",
+            *[
+                f"{item.get('name')}: {item.get('score')} x {item.get('weight')} = {item.get('weighted_score')}"
+                for item in risk_engine.get("components", [])
+                if isinstance(item, dict)
+            ],
+        ],
+        "trend_factors": [str((factors.get("trend") or {}).get("note") or "")],
+        "regime_factors": [str((factors.get("regime") or {}).get("note") or "")],
+        "contrarian_factors": (overlay.get("drivers") if overlay.get("active") else overlay.get("blockers")) or [],
+    }
+
+
+def apply_position_policy(
+    opportunity_score: float,
+    crowding: dict[str, Any],
+    modules: dict[str, Any],
+    snapshot: dict[str, Any],
+    data_quality: dict[str, Any],
+    risk_engine: dict[str, Any] | None = None,
+    regime_layer: dict[str, Any] | None = None,
+    trend_layer: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    crowding_penalty_value = as_float(crowding.get("penalty")) or 0
+    risk_engine = risk_engine or compute_risk_engine(snapshot, modules, crowding)
+    base_score = round2(clamp(opportunity_score - crowding_penalty_value, 0, 100)) or 0
+    position_model = build_position_model(base_score, risk_engine, regime_layer, trend_layer)
+    risk_adjusted_score = as_float(position_model.get("adjusted_position_score")) or 0
+    overlay = contrarian_beta_overlay(opportunity_score, crowding, modules, snapshot, risk_engine, risk_adjusted_score)
+    pre_cap_score = round2(max(risk_adjusted_score, as_float(overlay.get("target_score")) or risk_adjusted_score)) or 0
+    caps = evaluate_risk_caps(pre_cap_score, opportunity_score, crowding_penalty_value, modules, snapshot, data_quality)
+    applied_cap, discarded_caps = resolve_risk_caps(caps)
+    applied_cap_value = as_float((applied_cap or {}).get("score_cap"))
+    final_score = round2(clamp(min(pre_cap_score, applied_cap_value) if applied_cap_value is not None else pre_cap_score, 0, 100)) or 0
+    overlay = dict(overlay)
+    overlay["score_after_risk_caps"] = final_score
+    overlay["capped_by_risk_cap"] = bool(overlay.get("active") and final_score < (as_float(overlay.get("target_score")) or final_score))
+    recommended_range = position_range(final_score)
+    decision_explain = build_decision_explain(
+        base_score,
+        risk_adjusted_score,
+        pre_cap_score,
+        final_score,
+        position_model,
+        risk_engine,
+        caps,
+        applied_cap,
+        overlay,
+    )
+    return {
+        "account_scope": "stock_account",
+        "position_policy_version": POSITION_POLICY_VERSION,
+        "allocation_policy_version": ALLOCATION_POLICY_VERSION,
+        "base_market_position_score": base_score,
+        "risk_penalty_score": risk_engine.get("risk_penalty_score"),
+        "risk_discount": risk_engine.get("risk_discount"),
+        "risk_adjusted_market_position_score": risk_adjusted_score,
+        "pre_overlay_market_position_score": risk_adjusted_score,
+        "contrarian_beta_overlay": overlay,
+        "contrarian_beta_overlay_score": overlay.get("intensity_score"),
+        "contrarian_beta_add_score": overlay.get("add_score"),
+        "risk_engine": risk_engine,
+        "position_model": position_model,
+        "decision_explain": decision_explain,
+        "pre_cap_market_position_score": pre_cap_score,
+        "market_position_score": final_score,
+        "risk_caps": caps,
+        "applied_cap": applied_cap,
+        "discarded_caps": discarded_caps,
+        "recommended_equity_position_range": recommended_range,
+        "base_equity_position_range": recommended_range,
+        "equity_position_range": recommended_range,
+    }
+
+
+def volatility_policy(snapshot: dict[str, Any]) -> dict[str, Any]:
+    market = (snapshot.get("volatility", {}) or {}).get("market", {}) or {}
+    realized_vol = normalize_annual_vol(market.get("realized_vol_30d"))
+    return {
+        "mode": "risk_indicator_only",
+        "target_annual_vol": None,
+        "realized_volatility_30d": round2(realized_vol),
+        "status": "available" if realized_vol is not None else "unavailable",
+        "note": "股票账户仓位不再按8%年化目标波动率缩放；波动率仅用于风险扣分、风险上限和提示。",
+    }
+
+
+def legacy_volatility_targeting(snapshot: dict[str, Any], base_score: float, base_range: str) -> dict[str, Any]:
+    market = (snapshot.get("volatility", {}) or {}).get("market", {}) or {}
+    realized_vol = normalize_annual_vol(market.get("realized_vol_30d"))
+    target_vol = as_float(market.get("target_annual_vol")) or 0.08
+    if realized_vol is None or realized_vol <= 0:
+        scale_factor = 1.0
+        status = "unavailable"
+        note = "旧版8%目标波动率字段，仅供历史兼容，不作为股票账户官方仓位建议。"
+    else:
+        scale_factor = clamp(target_vol / realized_vol, 0.25, 1.15)
+        status = "active"
+        note = "旧版8%目标波动率缩放结果已废弃，仅供历史兼容，不作为股票账户官方仓位建议。"
+
+    parsed_range = parse_percent_range(base_range)
+    adjusted_range = None
+    if parsed_range is not None:
+        adjusted_range = (parsed_range[0] * scale_factor, parsed_range[1] * scale_factor)
+
+    return {
+        "status": status,
+        "target_annual_vol": round2(target_vol),
+        "realized_vol_30d": round2(realized_vol),
+        "scale_factor": round2(scale_factor),
+        "base_position_score": round2(base_score),
+        "adjusted_position_score": round2(clamp(base_score * scale_factor, 0, 100)),
+        "base_equity_position_range": base_range,
+        "adjusted_equity_position_range": format_percent_range(adjusted_range),
+        "deprecated": True,
+        "note": note,
+    }
+
+
+def sleeve_mix(score: float, modules: dict[str, Any], crowding: dict[str, Any]) -> dict[str, str]:
+    breadth_pct = modules["breadth"]["score_pct"] or 0
+    penalty = crowding["penalty"]
+    if score <= 35:
+        return {"core": "20%-30%", "offensive": "0%-15%", "defensive": "55%-75%", "thematic": "0%-5%"}
+    if score <= 50:
+        return {"core": "35%-45%", "offensive": "15%-25%", "defensive": "25%-40%", "thematic": "0%-8%"}
+    if breadth_pct < 45 or penalty >= 14:
+        return {"core": "45%-50%", "offensive": "25%-35%", "defensive": "15%-25%", "thematic": "0%-10%"}
+    if score <= 65:
+        return {"core": "45%-55%", "offensive": "30%-40%", "defensive": "10%-20%", "thematic": "0%-10%"}
+    return {"core": "50%-60%", "offensive": "30%-45%", "defensive": "5%-15%", "thematic": "0%-10%"}
+
+
+def regime(opportunity: float, position: float, modules: dict[str, Any], crowding: dict[str, Any]) -> str:
+    breadth_pct = modules["breadth"]["score_pct"] or 0
+    if opportunity >= 60 and breadth_pct < 45:
+        return "结构性偏强但分歧较大"
+    if position <= 35:
+        return "防守或弱修复"
+    if position <= 50:
+        return "中性震荡偏结构"
+    if position <= 65:
+        return "结构性偏强"
+    return "趋势性偏强"
+
+
+def confidence(snapshot: dict[str, Any], data_quality: dict[str, Any] | None = None) -> str:
+    quality = data_quality if data_quality is not None else (snapshot.get("data_quality", {}) or {})
+    missing = quality.get("missing_fields", []) or []
+    warnings = quality.get("warnings", []) or []
+    valuation_market = ((snapshot.get("valuation") or snapshot.get("repricing") or {}).get("market", {}) or {})
+    valuation_missing = as_float(valuation_market.get("valuation_score")) is None
+    volatility_missing = as_float(((snapshot.get("volatility", {}) or {}).get("market", {}) or {}).get("realized_vol_30d")) is None
+
+    core_prefixes = [
+        "market.indices",
+        "breadth.",
+        "capital_flow.northbound_net_inflow_100m_cny",
+        "capital_flow.main_net_inflow_100m_cny",
+    ]
+    important_prefixes = [
+        "capital_flow.turnover_distribution",
+        "sector_rotation.",
+        "valuation.",
+        "volatility.",
+        "macro.",
+    ]
+    auxiliary_prefixes = [
+        "qmt_portfolio",
+        "data_quality.cross_validation",
+    ]
+
+    core_missing = any(any(str(field).startswith(prefix) for prefix in core_prefixes) for field in missing)
+    important_missing = any(any(str(field).startswith(prefix) for prefix in important_prefixes) for field in missing)
+    auxiliary_only = missing and all(any(str(field).startswith(prefix) for prefix in auxiliary_prefixes) for field in missing)
+    rolling_sample_insufficient = any("rolling sample insufficient" in str(warning) for warning in warnings)
+
+    if core_missing:
+        return "low"
+    if valuation_missing or volatility_missing or important_missing or rolling_sample_insufficient:
+        return "medium"
+    if auxiliary_only:
+        return "high"
+    if missing:
+        return "medium"
+    return "high"
+
+
+def validate_market_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    errors: list[str] = []
+
+    def err(field: str, message: str) -> None:
+        errors.append(f"{field}: {message}")
+
+    def require_object(field: str) -> dict[str, Any]:
+        value = snapshot.get(field)
+        if not isinstance(value, dict):
+            err(field, "required object")
+            return {}
+        return value
+
+    def require_number(container: dict[str, Any], field: str, label: str) -> None:
+        if as_float(container.get(field)) is None:
+            err(label, "required numeric value")
+
+    if not isinstance(snapshot, dict):
+        raise MarketSnapshotValidationError("market snapshot must be an object")
+
+    trade_date = parse_date_value(snapshot.get("date"))
+    if trade_date is None:
+        err("date", "required ISO date")
+
+    market = require_object("market")
+    market_date = parse_date_value(market.get("as_of_trade_date"))
+    if market_date is None:
+        err("market.as_of_trade_date", "required ISO date")
+    elif trade_date is not None and market_date != trade_date:
+        err("market.as_of_trade_date", "must match snapshot date")
+    indices = market.get("indices")
+    if not isinstance(indices, dict) or not indices:
+        err("market.indices", "required non-empty object")
+    else:
+        for code in ["000001.SH", "399001.SZ", "399006.SZ"]:
+            row = indices.get(code)
+            if not isinstance(row, dict):
+                err(f"market.indices.{code}", "required object")
+            else:
+                require_number(row, "close", f"market.indices.{code}.close")
+
+    breadth = require_object("breadth")
+    for field in ["advancers", "decliners", "total"]:
+        require_number(breadth, field, f"breadth.{field}")
+
+    capital_flow = require_object("capital_flow")
+    for field in ["northbound_net_inflow_100m_cny", "main_net_inflow_100m_cny"]:
+        if (field == "northbound_net_inflow_100m_cny"
+            and capital_flow.get("northbound_status") == "not_disclosed"
+            and str(snapshot.get("date", "")) >= "2024-08-19"
+            and capital_flow.get(field) is None
+            and f"capital_flow.{field}" in (snapshot.get("data_quality", {}).get("missing_fields", []))):
+            continue
+        require_number(capital_flow, field, f"capital_flow.{field}")
+    turnover = capital_flow.get("turnover_distribution")
+    if not isinstance(turnover, dict):
+        err("capital_flow.turnover_distribution", "required object")
+    else:
+        for bucket in ["large_cap", "mid_cap", "small_cap"]:
+            row = turnover.get(bucket)
+            if not isinstance(row, dict):
+                err(f"capital_flow.turnover_distribution.{bucket}", "required object")
+            elif as_float(row.get("share")) is None:
+                err(f"capital_flow.turnover_distribution.{bucket}.share", "required numeric value")
+
+    sector_rotation = require_object("sector_rotation")
+    for field in ["top5_industries_by_return", "top5_industries_by_capital_inflow"]:
+        rows = sector_rotation.get(field)
+        if not isinstance(rows, list) or not rows:
+            err(f"sector_rotation.{field}", "required non-empty list")
+        elif not all(isinstance(row, dict) for row in rows):
+            err(f"sector_rotation.{field}", "must contain objects")
+
+    valuation = require_object("valuation")
+    if not isinstance(valuation.get("market"), dict):
+        err("valuation.market", "required object")
+
+    volatility = require_object("volatility")
+    if not isinstance(volatility.get("market"), dict):
+        err("volatility.market", "required object")
+
+    macro_data = snapshot.get("macro")
+    if not isinstance(macro_data, dict):
+        err("macro", "required object")
+
+    data_quality = require_object("data_quality")
+    for field in ["missing_fields", "warnings"]:
+        if not isinstance(data_quality.get(field), list):
+            err(f"data_quality.{field}", "required list")
+
+    if errors:
+        raise MarketSnapshotValidationError("; ".join(errors))
+    return {
+        "ok": True,
+        "basis_trade_date": snapshot.get("date"),
+        "checked_fields": [
+            "date",
+            "market.indices",
+            "breadth",
+            "capital_flow",
+            "sector_rotation",
+            "valuation.market",
+            "volatility.market",
+            "macro",
+            "data_quality",
+        ],
+    }
+
+
+def score_snapshot(snapshot: dict[str, Any], snapshot_path: Path | None = None, snapshot_bytes: bytes | None = None) -> dict[str, Any]:
+    snapshot_validation = validate_market_snapshot(snapshot)
+    rolling = rolling_market_features(snapshot)
+    quality = data_quality_with_warnings(snapshot.get("data_quality", {}))
+    for warning in future_dated_feature_warnings(snapshot):
+        add_quality_warning(quality, warning)
+    for warning in rolling_sample_warnings(rolling):
+        add_quality_warning(quality, warning)
+    modules = {
+        "index_trend": index_trend(snapshot),
+        "breadth": market_breadth(snapshot),
+        "liquidity": liquidity(snapshot),
+        "capital_flow": capital_flow(snapshot),
+        "mainline": mainline(snapshot),
+        "valuation": valuation(snapshot),
+        "macro": macro(snapshot),
+    }
+    opportunity = round2(sum(as_float(module["score"]) or 0 for module in modules.values())) or 0
+    crowding = crowding_penalty(snapshot, modules)
+    risk_engine = compute_risk_engine(snapshot, modules, crowding)
+    market_regime_layer = compute_market_regime(snapshot)
+    market_trend_layer = compute_market_trend(snapshot, modules, rolling)
+    position_policy = apply_position_policy(opportunity, crowding, modules, snapshot, quality, risk_engine, market_regime_layer, market_trend_layer)
+    final_score = position_policy["market_position_score"]
+    pre_cap_score = position_policy["pre_cap_market_position_score"]
+    recommended_range = position_policy["recommended_equity_position_range"]
+    contrarian_overlay = position_policy.get("contrarian_beta_overlay", {})
+    allocation = allocation_policy(
+        final_score,
+        opportunity,
+        pre_cap_score,
+        recommended_range,
+        modules,
+        crowding,
+        snapshot,
+        position_policy["risk_caps"],
+        contrarian_overlay,
+    )
+    vol_policy = volatility_policy(snapshot)
+    legacy_vol_targeting = legacy_volatility_targeting(snapshot, final_score, recommended_range)
+    shanghai = (snapshot.get("market", {}).get("indices", {}) or {}).get("000001.SH", {})
+    now = datetime.now(TZ).isoformat(timespec="seconds")
+    if snapshot_bytes is None and snapshot_path and snapshot_path.exists():
+        snapshot_bytes = snapshot_path.read_bytes()
+    snapshot_hash = hashlib.sha256(snapshot_bytes or json.dumps(snapshot, ensure_ascii=False).encode("utf-8")).hexdigest()
+    snapshot_label = None
+    if snapshot_path:
+        resolved_snapshot = snapshot_path.resolve()
+        try:
+            snapshot_label = str(resolved_snapshot.relative_to(ROOT))
+        except ValueError:
+            snapshot_label = str(resolved_snapshot)
+
+    key_constraints = [
+        "上涨家数和行业上涨占比不足时，不把指数强势直接等同于全面加仓。",
+        "主力资金持续流出时，进攻仓只做主线，不扩散到弱势行业。",
+        "估值分位偏贵时，即使趋势强也要用拥挤惩罚和风险上限约束泡沫风险。",
+        "北向与主力资金同时大幅流出时，即使趋势分高也触发资金退潮仓位上限。",
+        "成交额或换手极端放量且估值/波动偏高时，按爆量顶部风险限制股票账户仓位。",
+        "前五行业资金或涨幅高度集中且估值/波动偏高时，按主线拥挤顶部风险限制股票账户仓位。",
+        "股票账户官方仓位不再按8%目标波动率缩放，波动率仅作为风险扣分、上限和提示。",
+        "深熊逆向加仓只抬高 β核心仓宽基 ETF，不开放 α主动仓，不替代标的研究。",
+    ]
+    record = {
+        "run_id": f"{datetime.now(TZ).strftime('%Y%m%dT%H%M%S')}-{uuid4().hex[:8]}",
+        "model_version": MODEL_VERSION,
+        "score_schema_version": SCORE_SCHEMA_VERSION,
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
+        "account_scope": position_policy["account_scope"],
+        "position_policy_version": position_policy["position_policy_version"],
+        "allocation_policy_version": allocation["version"],
+        "scored_at": now,
+        "basis_trade_date": snapshot.get("date") or (snapshot.get("market", {}) or {}).get("as_of_trade_date"),
+        "snapshot_file": snapshot_label,
+        "snapshot_sha256": snapshot_hash,
+        "market_regime": regime(opportunity, final_score, modules, crowding),
+        "market_regime_code": market_regime_layer["regime"],
+        "market_regime_label": market_regime_layer["label"],
+        "market_regime_layer": market_regime_layer,
+        "trend_state": market_trend_layer["trend_state"],
+        "trend_state_label": market_trend_layer["label"],
+        "trend_strength": market_trend_layer["trend_strength"],
+        "trend_duration": market_trend_layer["trend_duration"],
+        "market_trend_layer": market_trend_layer,
+        "market_opportunity_score": opportunity,
+        "opportunity_score": opportunity,
+        "crowding_penalty": crowding["penalty"],
+        "risk_penalty_score": position_policy["risk_penalty_score"],
+        "risk_discount": position_policy["risk_discount"],
+        "risk_adjusted_market_position_score": position_policy["risk_adjusted_market_position_score"],
+        "pre_overlay_market_position_score": position_policy["pre_overlay_market_position_score"],
+        "contrarian_beta_overlay": contrarian_overlay,
+        "contrarian_beta_overlay_score": position_policy["contrarian_beta_overlay_score"],
+        "contrarian_beta_add_score": position_policy["contrarian_beta_add_score"],
+        "risk_engine": position_policy["risk_engine"],
+        "position_model": position_policy["position_model"],
+        "decision_explain": position_policy["decision_explain"],
+        "pre_cap_market_position_score": pre_cap_score,
+        "market_position_score": final_score,
+        "base_market_position_score": position_policy["base_market_position_score"],
+        "recommended_equity_position_range": recommended_range,
+        "confidence": confidence(snapshot, quality),
+        "equity_position_range": recommended_range,
+        "base_equity_position_range": recommended_range,
+        "risk_caps": position_policy["risk_caps"],
+        "applied_cap": position_policy["applied_cap"],
+        "discarded_caps": position_policy["discarded_caps"],
+        "volatility_policy": vol_policy,
+        "vol_adjusted_market_position_score": None,
+        "vol_adjusted_equity_position_range": None,
+        "legacy_vol_adjusted_market_position_score": legacy_vol_targeting.get("adjusted_position_score"),
+        "legacy_vol_adjusted_equity_position_range": legacy_vol_targeting.get("adjusted_equity_position_range"),
+        "legacy_vol_adjusted_deprecated": True,
+        "allocation_state": allocation["state"],
+        "allocation_policy": allocation,
+        "sleeve_allocation": allocation["sleeves"],
+        "legacy_sleeve_mix": sleeve_mix(final_score, modules, crowding),
+        "shanghai_composite": round2(as_float(shanghai.get("close"))),
+        "modules": modules,
+        "crowding": crowding,
+        "rolling_features": rolling,
+        "volatility_targeting": legacy_vol_targeting,
+        "factor_changes": [
+            "stock account position policy v2 uses recommended_equity_position_range as the official position output",
+            "risk_caps are resolved by lowest score_cap with severity as tie-breaker, and records expose applied_cap plus discarded_caps for conflict review",
+            "risk_caps can cap final market_position_score for bubble, blowoff volume, sector concentration, high volatility, crowding, missing risk data, and strong-index weak-breadth regimes",
+            "8% target-volatility scaling is deprecated and no longer changes the official stock-account position range",
+            "position ranges now use stock-account exposure and can reach 90%-100% in low-crowding strong trends",
+            "capital_flow removed duplicate mid/small turnover and top industry inflow scoring",
+            "breadth added median and strong advancer/decliner placeholders when available",
+            "crowding penalties changed from hard thresholds to gradients",
+            "confidence now distinguishes core, important, and auxiliary missing fields",
+            "valuation now scores 5-year index PE/PB percentiles instead of a neutral placeholder",
+            "capital flow and mainline modules use rolling persistence features",
+            "allocation_policy_v2 uses four stock-account sleeves: beta core, alpha active, defensive factor, and liquidity; mainline ETF plus leader stock are merged into alpha active",
+            "market_regime_v1 adds a structural layer for accumulation, expansion, distribution, and contraction classification",
+            "market_trend_v1 adds trend_state, trend_strength, and trend_duration from index trend, breadth persistence, and liquidity slope",
+            "risk_engine_v1 adds continuous risk_penalty_score and risk_discount before hard risk_cap constraints",
+            "position_model_v1 maps base position through trend, regime, and risk multipliers before hard risk_cap constraints",
+            "contrarian_beta_overlay_v1 adds a deep-bear value/reversal floor for beta_core only; it does not unlock alpha_active",
+        ],
+        "key_constraints": key_constraints,
+        "data_quality": quality,
+            "snapshot_validation": snapshot_validation,
+        }
+    record["market_observation"] = build_market_observation(snapshot, record)
+    if snapshot.get("reconstruction"):
+        record["reconstruction"] = copy.deepcopy(snapshot["reconstruction"])
+    return record
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def load_history(path: Path = DEFAULT_HISTORY_PATH) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "schema_version": HISTORY_SCHEMA_VERSION,
+            "model_version": MODEL_VERSION,
+            "position_policy_version": POSITION_POLICY_VERSION,
+            "allocation_policy_version": ALLOCATION_POLICY_VERSION,
+            "dedupe_key_fields": list(HISTORY_DEDUPE_KEY_FIELDS),
+            "updated_at": None,
+            "records": [],
+        }
+    payload = load_json(path)
+    if isinstance(payload, list):
+        payload = {
+            "schema_version": HISTORY_SCHEMA_VERSION,
+            "model_version": MODEL_VERSION,
+            "position_policy_version": POSITION_POLICY_VERSION,
+            "allocation_policy_version": ALLOCATION_POLICY_VERSION,
+            "dedupe_key_fields": list(HISTORY_DEDUPE_KEY_FIELDS),
+            "updated_at": None,
+            "records": payload,
+        }
+    try:
+        payload["schema_version"] = max(int(payload.get("schema_version", 1)), HISTORY_SCHEMA_VERSION)
+    except (TypeError, ValueError):
+        payload["schema_version"] = HISTORY_SCHEMA_VERSION
+    payload.setdefault("model_version", MODEL_VERSION)
+    payload.setdefault("position_policy_version", POSITION_POLICY_VERSION)
+    payload.setdefault("allocation_policy_version", ALLOCATION_POLICY_VERSION)
+    payload["dedupe_key_fields"] = list(HISTORY_DEDUPE_KEY_FIELDS)
+    if not isinstance(payload.get("records"), list):
+        payload["records"] = []
+    payload["records"] = [normalize_score_record(record) if isinstance(record, dict) else record for record in payload["records"]]
+    return payload
+
+
+def save_history(history: dict[str, Any], path: Path = DEFAULT_HISTORY_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def normalize_allocation_policy(policy: Any) -> Any:
+    if not isinstance(policy, dict):
+        return policy
+    normalized = dict(policy)
+    sleeves = normalized.get("sleeves")
+    if isinstance(sleeves, list):
+        normalized_sleeves: list[Any] = []
+        for sleeve in sleeves:
+            if isinstance(sleeve, dict):
+                normalized_sleeve = dict(sleeve)
+                if "name" not in normalized_sleeve and isinstance(normalized_sleeve.get("label"), str):
+                    normalized_sleeve["name"] = normalized_sleeve["label"]
+                normalized_sleeves.append(normalized_sleeve)
+            else:
+                normalized_sleeves.append(sleeve)
+        normalized["sleeves"] = normalized_sleeves
+    return normalized
+
+
+def normalize_score_record(record: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(record)
+    normalized["allocation_policy"] = normalize_allocation_policy(normalized.get("allocation_policy"))
+    return normalized
+
+
+def build_history_audit_event(
+    event_type: str,
+    *,
+    record: dict[str, Any] | None = None,
+    dedupe_key: dict[str, Any] | None = None,
+    appended: bool = False,
+    duplicate: bool = False,
+    status: str = "ok",
+    reason: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    record = record if isinstance(record, dict) else {}
+    return {
+        "event_time": datetime.now(TZ).isoformat(timespec="seconds"),
+        "event_type": event_type,
+        "status": status,
+        "reason": reason,
+        "run_id": record.get("run_id"),
+        "dedupe_key": dedupe_key if dedupe_key is not None else history_dedupe_key_payload(record),
+        "appended": appended,
+        "duplicate": duplicate,
+        "schema_version": record.get("score_schema_version") or SCORE_SCHEMA_VERSION,
+        "history_schema_version": HISTORY_SCHEMA_VERSION,
+        "model_version": record.get("model_version"),
+        "position_policy_version": record.get("position_policy_version"),
+        "allocation_policy_version": record.get("allocation_policy_version"),
+        "details": details or {},
+    }
+
+
+def write_history_audit_event(event: dict[str, Any], audit_path: Path) -> None:
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    with audit_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def add_validation_error(errors: list[str], field: str, message: str) -> None:
+    errors.append(f"{field}: {message}")
+
+
+def require_non_empty_string(record: dict[str, Any], field: str, errors: list[str]) -> None:
+    value = record.get(field)
+    if not isinstance(value, str) or not value.strip():
+        add_validation_error(errors, field, "required non-empty string")
+
+
+def require_numeric_range(record: dict[str, Any], field: str, low: float, high: float, errors: list[str], *, required: bool = True) -> None:
+    value = record.get(field)
+    if value is None:
+        if required:
+            add_validation_error(errors, field, "required number")
+        return
+    number = as_float(value)
+    if number is None:
+        add_validation_error(errors, field, "must be numeric")
+        return
+    if number < low or number > high:
+        add_validation_error(errors, field, f"must be between {low} and {high}")
+
+
+def validate_percent_range_field(record: dict[str, Any], field: str, errors: list[str], *, required: bool = False) -> None:
+    value = record.get(field)
+    if value in [None, ""]:
+        if required:
+            add_validation_error(errors, field, "required percent range")
+        return
+    if not isinstance(value, str):
+        add_validation_error(errors, field, "must be a percent range string")
+        return
+    bounds = parse_percent_range(value)
+    if bounds is None:
+        add_validation_error(errors, field, "must use a percent range such as 40%-60%")
+        return
+    lower, upper = bounds
+    if lower < 0 or upper > 100 or lower > upper:
+        add_validation_error(errors, field, "must stay within 0%-100% and lower must not exceed upper")
+
+
+def validate_score_modules(modules: Any, errors: list[str]) -> None:
+    if not isinstance(modules, dict):
+        add_validation_error(errors, "modules", "required object")
+        return
+    for key, meta in MODULES.items():
+        module = modules.get(key)
+        field = f"modules.{key}"
+        if not isinstance(module, dict):
+            add_validation_error(errors, field, "required object")
+            continue
+        weight = as_float(module.get("weight"))
+        expected_weight = as_float(meta.get("weight"))
+        if weight is None or weight <= 0:
+            add_validation_error(errors, f"{field}.weight", "must be a positive number")
+        elif expected_weight is not None and abs(weight - expected_weight) > 0.01:
+            add_validation_error(errors, f"{field}.weight", f"must equal configured weight {expected_weight}")
+        score = as_float(module.get("score"))
+        if score is None:
+            add_validation_error(errors, f"{field}.score", "required number")
+        elif weight is not None and (score < 0 or score > weight):
+            add_validation_error(errors, f"{field}.score", "must be between 0 and module weight")
+        score_pct = as_float(module.get("score_pct"))
+        if score_pct is None:
+            add_validation_error(errors, f"{field}.score_pct", "required number")
+        elif score_pct < 0 or score_pct > 100:
+            add_validation_error(errors, f"{field}.score_pct", "must be between 0 and 100")
+
+
+def validate_score_risk_caps(risk_caps: Any, errors: list[str]) -> None:
+    if not isinstance(risk_caps, list):
+        add_validation_error(errors, "risk_caps", "required list")
+        return
+    for index, cap in enumerate(risk_caps):
+        field = f"risk_caps[{index}]"
+        if not isinstance(cap, dict):
+            add_validation_error(errors, field, "must be an object")
+            continue
+        if not isinstance(cap.get("reason"), str) or not cap.get("reason"):
+            add_validation_error(errors, f"{field}.reason", "required non-empty string")
+        if not isinstance(cap.get("message"), str) or not cap.get("message"):
+            add_validation_error(errors, f"{field}.message", "required non-empty string")
+        severity = cap.get("severity")
+        if severity not in {"low", "medium", "high"}:
+            add_validation_error(errors, f"{field}.severity", "must be low, medium, or high")
+        score_cap = as_float(cap.get("score_cap"))
+        if score_cap is None or score_cap < 0 or score_cap > 100:
+            add_validation_error(errors, f"{field}.score_cap", "must be numeric and between 0 and 100")
+
+
+def validate_market_regime_layer(layer: Any, errors: list[str]) -> None:
+    if not isinstance(layer, dict):
+        add_validation_error(errors, "market_regime_layer", "required object")
+        return
+    regime_code = layer.get("regime")
+    if regime_code not in MARKET_REGIME_CODES:
+        add_validation_error(errors, "market_regime_layer.regime", "must be one of accumulation, expansion, distribution, contraction")
+    if not isinstance(layer.get("version"), str) or not layer.get("version"):
+        add_validation_error(errors, "market_regime_layer.version", "required non-empty string")
+    if not isinstance(layer.get("label"), str) or not layer.get("label"):
+        add_validation_error(errors, "market_regime_layer.label", "required non-empty string")
+    confidence_value = as_float(layer.get("confidence"))
+    if confidence_value is None or confidence_value < 0 or confidence_value > 1:
+        add_validation_error(errors, "market_regime_layer.confidence", "must be numeric and between 0 and 1")
+    if not isinstance(layer.get("scores"), dict):
+        add_validation_error(errors, "market_regime_layer.scores", "required object")
+    if not isinstance(layer.get("signals"), list):
+        add_validation_error(errors, "market_regime_layer.signals", "required list")
+
+
+def validate_market_trend_layer(layer: Any, errors: list[str]) -> None:
+    if not isinstance(layer, dict):
+        add_validation_error(errors, "market_trend_layer", "required object")
+        return
+    trend_state = layer.get("trend_state")
+    if trend_state not in TREND_STATES:
+        add_validation_error(errors, "market_trend_layer.trend_state", "must be one of early_trend, strong_trend, late_trend, weakening_trend")
+    if not isinstance(layer.get("version"), str) or not layer.get("version"):
+        add_validation_error(errors, "market_trend_layer.version", "required non-empty string")
+    if not isinstance(layer.get("label"), str) or not layer.get("label"):
+        add_validation_error(errors, "market_trend_layer.label", "required non-empty string")
+    strength = as_float(layer.get("trend_strength"))
+    if strength is None or strength < 0 or strength > 100:
+        add_validation_error(errors, "market_trend_layer.trend_strength", "must be numeric and between 0 and 100")
+    duration = as_float(layer.get("trend_duration"))
+    if duration is None or duration < 0:
+        add_validation_error(errors, "market_trend_layer.trend_duration", "must be numeric and non-negative")
+    if not isinstance(layer.get("signals"), list):
+        add_validation_error(errors, "market_trend_layer.signals", "required list")
+
+
+def validate_risk_engine(engine: Any, errors: list[str]) -> None:
+    if not isinstance(engine, dict):
+        add_validation_error(errors, "risk_engine", "required object")
+        return
+    if not isinstance(engine.get("version"), str) or not engine.get("version"):
+        add_validation_error(errors, "risk_engine.version", "required non-empty string")
+    risk_score = as_float(engine.get("risk_penalty_score"))
+    if risk_score is None or risk_score < 0 or risk_score > 100:
+        add_validation_error(errors, "risk_engine.risk_penalty_score", "must be numeric and between 0 and 100")
+    discount = as_float(engine.get("risk_discount"))
+    if discount is None or discount < 0 or discount > 1:
+        add_validation_error(errors, "risk_engine.risk_discount", "must be numeric and between 0 and 1")
+    if not isinstance(engine.get("risk_level"), str) or not engine.get("risk_level"):
+        add_validation_error(errors, "risk_engine.risk_level", "required non-empty string")
+    components = engine.get("components")
+    if not isinstance(components, list) or not components:
+        add_validation_error(errors, "risk_engine.components", "required non-empty list")
+
+
+def validate_position_model(model: Any, errors: list[str]) -> None:
+    if not isinstance(model, dict):
+        add_validation_error(errors, "position_model", "required object")
+        return
+    if not isinstance(model.get("version"), str) or not model.get("version"):
+        add_validation_error(errors, "position_model.version", "required non-empty string")
+    for field in ["base_position_score", "trend_multiplier", "regime_multiplier", "risk_discount", "adjusted_position_score"]:
+        value = as_float(model.get(field))
+        if value is None:
+            add_validation_error(errors, f"position_model.{field}", "required number")
+    if not isinstance(model.get("factors"), dict):
+        add_validation_error(errors, "position_model.factors", "required object")
+
+
+def validate_decision_explain(explain: Any, errors: list[str]) -> None:
+    if not isinstance(explain, dict):
+        add_validation_error(errors, "decision_explain", "required object")
+        return
+    if not isinstance(explain.get("version"), str) or not explain.get("version"):
+        add_validation_error(errors, "decision_explain.version", "required non-empty string")
+    for field in ["why_position_changed", "risk_factors", "trend_factors", "regime_factors"]:
+        if not isinstance(explain.get(field), list):
+            add_validation_error(errors, f"decision_explain.{field}", "required list")
+
+
+def validate_allocation_policy(policy: Any, errors: list[str]) -> None:
+    if not isinstance(policy, dict):
+        add_validation_error(errors, "allocation_policy", "required object")
+        return
+    if policy.get("version") != ALLOCATION_POLICY_VERSION:
+        add_validation_error(errors, "allocation_policy.version", f"must equal {ALLOCATION_POLICY_VERSION}")
+    if not isinstance(policy.get("state"), str) or not policy.get("state"):
+        add_validation_error(errors, "allocation_policy.state", "required non-empty string")
+    sleeves = policy.get("sleeves")
+    if not isinstance(sleeves, list):
+        add_validation_error(errors, "allocation_policy.sleeves", "required list")
+        return
+    seen_keys: set[str] = set()
+    for index, sleeve in enumerate(sleeves):
+        field = f"allocation_policy.sleeves[{index}]"
+        if not isinstance(sleeve, dict):
+            add_validation_error(errors, field, "must be an object")
+            continue
+        key = sleeve.get("key")
+        if key not in ALLOCATION_SLEEVE_ORDER:
+            add_validation_error(errors, f"{field}.key", "must be a known sleeve key")
+        else:
+            seen_keys.add(key)
+        validate_percent_range_field(sleeve, "target_range", errors, required=True)
+        midpoint = as_float(sleeve.get("midpoint"))
+        if midpoint is None or midpoint < 0 or midpoint > 100:
+            add_validation_error(errors, f"{field}.midpoint", "must be numeric and between 0 and 100")
+        for required in ["label", "asset", "role", "driver"]:
+            if not isinstance(sleeve.get(required), str) or not sleeve.get(required):
+                add_validation_error(errors, f"{field}.{required}", "required non-empty string")
+    missing = set(ALLOCATION_SLEEVE_ORDER) - seen_keys
+    if missing:
+        add_validation_error(errors, "allocation_policy.sleeves", f"missing sleeve keys: {', '.join(sorted(missing))}")
+
+
+def validate_score_record(record: dict[str, Any]) -> dict[str, Any]:
+    errors: list[str] = []
+    if not isinstance(record, dict):
+        raise ScoreRecordValidationError("score record must be an object")
+
+    for field in REQUIRED_SCORE_RECORD_STRING_FIELDS:
+        require_non_empty_string(record, field, errors)
+    for field, (low, high) in REQUIRED_SCORE_RECORD_NUMERIC_RANGES.items():
+        require_numeric_range(record, field, low, high, errors)
+    for field, (low, high) in OPTIONAL_SCORE_RECORD_NUMERIC_RANGES.items():
+        require_numeric_range(record, field, low, high, errors, required=False)
+    for field in SCORE_RECORD_PERCENT_RANGE_FIELDS:
+        validate_percent_range_field(record, field, errors, required=field == "recommended_equity_position_range")
+
+    if record.get("confidence") not in {"high", "medium", "low"}:
+        add_validation_error(errors, "confidence", "must be high, medium, or low")
+    if record.get("market_regime_code") not in MARKET_REGIME_CODES:
+        add_validation_error(errors, "market_regime_code", "must be one of accumulation, expansion, distribution, contraction")
+    validate_market_regime_layer(record.get("market_regime_layer"), errors)
+    if isinstance(record.get("market_regime_layer"), dict) and record.get("market_regime_code") != record["market_regime_layer"].get("regime"):
+        add_validation_error(errors, "market_regime_code", "must match market_regime_layer.regime")
+    if record.get("trend_state") not in TREND_STATES:
+        add_validation_error(errors, "trend_state", "must be one of early_trend, strong_trend, late_trend, weakening_trend")
+    validate_market_trend_layer(record.get("market_trend_layer"), errors)
+    if isinstance(record.get("market_trend_layer"), dict) and record.get("trend_state") != record["market_trend_layer"].get("trend_state"):
+        add_validation_error(errors, "trend_state", "must match market_trend_layer.trend_state")
+    validate_risk_engine(record.get("risk_engine"), errors)
+    if isinstance(record.get("risk_engine"), dict):
+        if record.get("risk_penalty_score") != record["risk_engine"].get("risk_penalty_score"):
+            add_validation_error(errors, "risk_penalty_score", "must match risk_engine.risk_penalty_score")
+        if record.get("risk_discount") != record["risk_engine"].get("risk_discount"):
+            add_validation_error(errors, "risk_discount", "must match risk_engine.risk_discount")
+    validate_position_model(record.get("position_model"), errors)
+    validate_decision_explain(record.get("decision_explain"), errors)
+    if parse_date_value(record.get("basis_trade_date")) is None:
+        add_validation_error(errors, "basis_trade_date", "must be parseable as a date")
+    scored_at = record.get("scored_at")
+    try:
+        datetime.fromisoformat(str(scored_at))
+    except Exception:
+        add_validation_error(errors, "scored_at", "must be ISO-8601 datetime")
+
+    validate_score_modules(record.get("modules"), errors)
+    validate_score_risk_caps(record.get("risk_caps"), errors)
+    validate_allocation_policy(record.get("allocation_policy"), errors)
+    if not isinstance(record.get("crowding"), dict):
+        add_validation_error(errors, "crowding", "required object")
+    if not isinstance(record.get("data_quality"), dict):
+        add_validation_error(errors, "data_quality", "required object")
+
+    if errors:
+        raise ScoreRecordValidationError("; ".join(errors))
+    return {
+        "ok": True,
+        "schema_version": SCORE_SCHEMA_VERSION,
+        "checked_required_fields": list(REQUIRED_SCORE_RECORD_STRING_FIELDS)
+        + list(REQUIRED_SCORE_RECORD_NUMERIC_RANGES.keys())
+        + [
+            "modules",
+            "risk_caps",
+            "allocation_policy",
+            "market_regime_layer",
+            "market_trend_layer",
+            "risk_engine",
+            "position_model",
+            "decision_explain",
+            "crowding",
+            "data_quality",
+        ],
+    }
+
+
+def score_record_is_current_schema(record: dict[str, Any]) -> bool:
+    if not isinstance(record, dict) or record.get("legacy_schema") is True:
+        return False
+    if record.get("model_version") != MODEL_VERSION or record.get("position_policy_version") != POSITION_POLICY_VERSION:
+        return False
+    if record.get("allocation_policy_version") != ALLOCATION_POLICY_VERSION:
+        return False
+    try:
+        validate_score_record(record)
+    except ScoreRecordValidationError:
+        return False
+    return True
+
+
+def legacy_schema_reason(record: dict[str, Any]) -> str:
+    if not isinstance(record, dict):
+        return "invalid_record_type"
+    if record.get("legacy_schema") is True:
+        return str(record.get("legacy_reason") or "legacy_schema")
+    if record.get("model_version") != MODEL_VERSION:
+        return "legacy_model_version"
+    if record.get("position_policy_version") != POSITION_POLICY_VERSION:
+        return "legacy_position_policy_version"
+    if record.get("allocation_policy_version") != ALLOCATION_POLICY_VERSION:
+        return "legacy_allocation_policy_version"
+    try:
+        validate_score_record(record)
+    except ScoreRecordValidationError:
+        return "invalid_current_schema"
+    return "current_schema"
+
+
+def legacy_record_dedupe_key(record: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(str(record.get(field) or "") for field in HISTORY_DEDUPE_KEY_FIELDS)
+
+
+def legacy_record_archive_id(record: dict[str, Any]) -> tuple[str, str]:
+    return (str(record.get("run_id") or ""), "|".join(legacy_record_dedupe_key(record)))
+
+
+def mark_legacy_record(record: dict[str, Any], migrated_at: str) -> dict[str, Any]:
+    legacy = dict(record)
+    legacy["legacy_schema"] = True
+    legacy.setdefault("legacy_reason", legacy_schema_reason(record))
+    legacy.setdefault("legacy_migrated_at", migrated_at)
+    legacy.setdefault("legacy_dedupe_key", history_dedupe_key_payload(record))
+    return legacy
+
+
+def migrate_history_legacy_records(
+    history: dict[str, Any],
+    *,
+    migrated_at: str | None = None,
+    archive_duplicates: bool = True,
+) -> dict[str, Any]:
+    migrated_at = migrated_at or datetime.now(TZ).isoformat(timespec="seconds")
+    source_records = history.get("records", [])
+    if not isinstance(source_records, list):
+        source_records = []
+    existing_archive = history.get("legacy_archive", [])
+    if not isinstance(existing_archive, list):
+        existing_archive = []
+
+    records: list[dict[str, Any]] = []
+    archive: list[dict[str, Any]] = list(existing_archive)
+    archived_ids = {legacy_record_archive_id(record) for record in archive if isinstance(record, dict)}
+    seen_legacy_keys: set[tuple[str, ...]] = set()
+    legacy_marked_count = 0
+    legacy_archived_count = 0
+    current_record_count = 0
+
+    for raw_record in source_records:
+        record = raw_record if isinstance(raw_record, dict) else {"raw_record": raw_record}
+        record = normalize_score_record(record)
+        if score_record_is_current_schema(record):
+            records.append(record)
+            current_record_count += 1
+            continue
+
+        legacy = mark_legacy_record(record, migrated_at)
+        legacy_key = legacy_record_dedupe_key(legacy)
+        duplicate_legacy = archive_duplicates and legacy_key in seen_legacy_keys
+        if duplicate_legacy:
+            archived = dict(legacy)
+            archived["archived_reason"] = "duplicate_legacy_record"
+            archived.setdefault("legacy_archived_at", migrated_at)
+            archive_id = legacy_record_archive_id(archived)
+            if archive_id not in archived_ids:
+                archive.append(archived)
+                archived_ids.add(archive_id)
+                legacy_archived_count += 1
+            continue
+
+        was_legacy = isinstance(raw_record, dict) and raw_record.get("legacy_schema") is True
+        had_legacy_metadata = isinstance(raw_record, dict) and all(
+            key in raw_record for key in ["legacy_reason", "legacy_migrated_at", "legacy_dedupe_key"]
+        )
+        if not was_legacy or not had_legacy_metadata:
+            legacy_marked_count += 1
+        seen_legacy_keys.add(legacy_key)
+        records.append(legacy)
+
+    migrated_history = dict(history)
+    migrated_history["schema_version"] = HISTORY_SCHEMA_VERSION
+    migrated_history["model_version"] = MODEL_VERSION
+    migrated_history["position_policy_version"] = POSITION_POLICY_VERSION
+    migrated_history["allocation_policy_version"] = ALLOCATION_POLICY_VERSION
+    migrated_history["dedupe_key_fields"] = list(HISTORY_DEDUPE_KEY_FIELDS)
+    migrated_history["records"] = records
+    migrated_history["record_count"] = len(records)
+    migrated_history["legacy_record_count"] = sum(1 for record in records if isinstance(record, dict) and record.get("legacy_schema") is True)
+    migrated_history["current_record_count"] = current_record_count
+    migrated_history["legacy_archive"] = archive
+    migrated_history["legacy_archive_count"] = len(archive)
+    if legacy_marked_count or legacy_archived_count:
+        migrated_history["updated_at"] = migrated_at
+        migrated_history["legacy_migration"] = {
+            "migrated_at": migrated_at,
+            "legacy_marked_count": legacy_marked_count,
+            "legacy_archived_count": legacy_archived_count,
+            "archive_duplicates": archive_duplicates,
+        }
+
+    audit_event = build_history_audit_event(
+        "history_migration",
+        appended=False,
+        duplicate=False,
+        details={
+            "changed": migrated_history != history,
+            "legacy_marked_count": legacy_marked_count,
+            "legacy_archived_count": legacy_archived_count,
+            "current_record_count": current_record_count,
+            "legacy_record_count": migrated_history["legacy_record_count"],
+            "legacy_archive_count": len(archive),
+            "archive_duplicates": archive_duplicates,
+        },
+    )
+
+    return {
+        "history": migrated_history,
+        "changed": migrated_history != history,
+        "legacy_marked_count": legacy_marked_count,
+        "legacy_archived_count": legacy_archived_count,
+        "current_record_count": current_record_count,
+        "legacy_record_count": migrated_history["legacy_record_count"],
+        "legacy_archive_count": len(archive),
+        "audit_event": audit_event,
+    }
+
+
+def history_dedupe_key(record: dict[str, Any]) -> tuple[str, ...] | None:
+    values = []
+    for field in HISTORY_DEDUPE_KEY_FIELDS:
+        value = record.get(field)
+        if value is None or value == "":
+            return None
+        values.append(str(value))
+    return tuple(values)
+
+
+def history_dedupe_key_payload(record: dict[str, Any]) -> dict[str, Any]:
+    return {field: record.get(field) for field in HISTORY_DEDUPE_KEY_FIELDS}
+
+
+def find_duplicate_history_record(history: dict[str, Any], record: dict[str, Any]) -> dict[str, Any] | None:
+    candidate_key = history_dedupe_key(record)
+    if candidate_key is None:
+        return None
+    records = history.get("records", [])
+    if not isinstance(records, list):
+        return None
+    for existing in records:
+        if isinstance(existing, dict) and history_dedupe_key(existing) == candidate_key:
+            return existing
+    return None
+
+
+def append_history_record(history: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    schema_validation = validate_score_record(record)
+    history["schema_version"] = HISTORY_SCHEMA_VERSION
+    history["model_version"] = MODEL_VERSION
+    history["position_policy_version"] = POSITION_POLICY_VERSION
+    history["allocation_policy_version"] = ALLOCATION_POLICY_VERSION
+    history["dedupe_key_fields"] = list(HISTORY_DEDUPE_KEY_FIELDS)
+    if not isinstance(history.get("records"), list):
+        history["records"] = []
+
+    duplicate = find_duplicate_history_record(history, record)
+    if duplicate is not None:
+        return {
+            "appended": False,
+            "duplicate": True,
+            "record": duplicate,
+            "candidate_record": record,
+            "dedupe_key": history_dedupe_key_payload(record),
+            "duplicate_of_run_id": duplicate.get("run_id"),
+            "schema_validation": schema_validation,
+            "history": history,
+        }
+
+    history["updated_at"] = datetime.now(TZ).isoformat(timespec="seconds")
+    history["records"].append(record)
+    return {
+        "appended": True,
+        "duplicate": False,
+        "record": record,
+        "candidate_record": record,
+        "dedupe_key": history_dedupe_key_payload(record),
+        "duplicate_of_run_id": None,
+        "schema_validation": schema_validation,
+        "history": history,
+    }
+
+
+def append_score_record(
+    record: dict[str, Any],
+    history_path: Path = DEFAULT_HISTORY_PATH,
+    audit_path: Path | None = None,
+) -> dict[str, Any]:
+    audit_path = audit_path or history_audit_log_path(history_path)
+    history = load_history(history_path)
+    try:
+        result = append_history_record(history, record)
+    except Exception as exc:
+        audit_event = build_history_audit_event(
+            "history_append_failed",
+            record=record if isinstance(record, dict) else {},
+            appended=False,
+            duplicate=False,
+            status="failed",
+            reason=str(exc),
+        )
+        write_history_audit_event(audit_event, audit_path)
+        raise
+    if result["appended"]:
+        save_history(history, history_path)
+    audit_event = build_history_audit_event(
+        "history_append" if result["appended"] else "history_duplicate",
+        record=result.get("record") if isinstance(result.get("record"), dict) else record,
+        dedupe_key=result.get("dedupe_key"),
+        appended=bool(result.get("appended")),
+        duplicate=bool(result.get("duplicate")),
+        details={
+            "duplicate_of_run_id": result.get("duplicate_of_run_id"),
+            "candidate_run_id": (result.get("candidate_record") or {}).get("run_id")
+            if isinstance(result.get("candidate_record"), dict)
+            else None,
+        },
+    )
+    write_history_audit_event(audit_event, audit_path)
+    return {"history_path": str(history_path), "audit_path": str(audit_path), "audit_event": audit_event, **result}
+
+
+def append_score(snapshot_path: Path = DEFAULT_SNAPSHOT_PATH, history_path: Path = DEFAULT_HISTORY_PATH) -> dict[str, Any]:
+    snapshot_bytes = snapshot_path.read_bytes()
+    snapshot = json.loads(snapshot_bytes.decode("utf-8-sig"))
+    record = score_snapshot(snapshot, snapshot_path=snapshot_path, snapshot_bytes=snapshot_bytes)
+    return append_score_record(record, history_path)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Score a MyInvest A-share market snapshot and append history.")
+    parser.add_argument("--snapshot", default=str(DEFAULT_SNAPSHOT_PATH), help="Snapshot JSON path.")
+    parser.add_argument("--history", default=str(DEFAULT_HISTORY_PATH), help="Score history JSON path.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    result = append_score(Path(args.snapshot), Path(args.history))
+    record = result["record"]
+    print(
+        json.dumps(
+            {
+                "history_path": result["history_path"],
+                "run_id": record["run_id"],
+                "basis_trade_date": record["basis_trade_date"],
+                "market_opportunity_score": record["market_opportunity_score"],
+                "crowding_penalty": record["crowding_penalty"],
+                "pre_cap_market_position_score": record["pre_cap_market_position_score"],
+                "market_position_score": record["market_position_score"],
+                "recommended_equity_position_range": record["recommended_equity_position_range"],
+                "risk_cap_count": len(record.get("risk_caps", [])),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

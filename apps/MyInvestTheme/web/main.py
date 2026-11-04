@@ -1,0 +1,2016 @@
+from __future__ import annotations
+
+import json
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.requests import Request
+
+from scripts.canonical_mainline import (
+    DEFAULT_SCORE_FIELD,
+    SCORING_VERSION as CANONICAL_MAINLINE_VERSION,
+    build_canonical_mainline_summary,
+    build_legacy_theme_ranking,
+    build_mainline_ranking,
+)
+from scripts.mainline_cycle_stage import (
+    SCORING_VERSION as CYCLE_STAGE_VERSION,
+    build_cycle_stage_summary,
+    enrich_mainline_rows_with_cycle_stage,
+)
+from scripts.mainline_contract_validator import validate_mainline_report_contract
+from scripts.policy_candidate_audit import audit_policy_candidates, load_candidates
+from scripts.policy_field_provenance import field_provenance_for_policy
+from scripts.policy_provenance import compute_policy_content_hash
+from scripts.policy_time_provenance import audit_policy_time
+from scripts.theme_relevance import compute_theme_relevance_v2, load_theme_config
+from scripts.golden_snapshot_builder import GOLDEN_PATH
+from scripts.system_drift_detector import build_drift_report, load_golden_snapshot
+from scripts.theme_explanation_engine import ThemeExplanationNotFound, build_theme_explanation
+from scripts.counterfactual_simulator import (
+    CounterfactualTargetNotFound,
+    simulate_remove_event,
+    simulate_remove_policy,
+)
+from scripts.mainline_sensitivity_engine import build_theme_sensitivity
+from scripts.core_driver_detector import detect_core_drivers
+from scripts.system_consistency_oracle import build_consistency_oracle
+from scripts.theme_taxonomy_v2 import (
+    SCORING_VERSION as TAXONOMY_V2_VERSION,
+    build_score_series as build_taxonomy_v2_score_series,
+    load_or_build_taxonomy_v2,
+)
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+REPORT_DIR = ROOT_DIR / "research" / "mainline"
+ERA_REPORT_DIR = ROOT_DIR / "research" / "era_mainline"
+CHATGPT_QA_DIR = ROOT_DIR / "research" / "chatgpt_qa"
+POLICY_PATH = ROOT_DIR / "data" / "policy_signals.json"
+POLICY_STOCK_WATCHLIST_PATH = ROOT_DIR / "config" / "policy_stock_watchlist.json"
+REPORT_ID_RE = re.compile(r"^mainline_review_\d{4}-\d{2}-\d{2}_\d{6}$")
+REPORT_ID_TIME_RE = re.compile(r"^mainline_review_(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})$")
+CHATGPT_QA_ID_RE = re.compile(r"^chatgpt_qa_\d{4}-\d{2}-\d{2}$")
+A_SHARE_CODE_RE = re.compile(r"^(?P<number>\d{6})\.(?P<market>SH|SZ|BJ)$", re.IGNORECASE)
+DEFAULT_STOCK_RESEARCH_BASE_URL = "https://stock.okbbc.com/research?stock="
+
+POLICY_THEME_KEYWORDS = {
+    "硬科技电子/半导体": ("硬科技电子/半导体", "半导体", "集成电路", "芯片", "电子", "硬科技", "PCB", "元器件"),
+    "高端制造/机器人/军工": ("高端制造/机器人/军工", "高端制造", "机器人", "军工", "智能制造", "高端装备", "自动化", "航空"),
+    "建材/稳增长修复": ("建材/稳增长修复", "建材", "建筑材料", "基建", "基础设施", "水泥", "玻璃", "稳增长"),
+    "AI算力/通信": ("AI算力/通信", "AI算力", "人工智能", "算力", "数据中心", "通信", "数据要素", "软件服务", "数字经济", "算电协同"),
+    "新能源/电力设备": ("新能源/电力设备", "新能源", "电力设备", "储能", "光伏", "风电", "电池", "智能电网", "绿色低碳"),
+    "资源周期": ("资源周期", "资源", "有色", "煤炭", "石油", "钢铁", "稀土", "黄金", "铜", "化工", "新材料"),
+    "消费/传媒": ("消费/传媒", "消费", "传媒", "旅游", "零售", "免税", "文旅", "商业", "服务消费", "食品饮料"),
+    "创新药/医药": ("创新药/医药", "创新药", "医药", "医疗器械", "生物制品", "疫苗", "CRO", "中医药", "药品"),
+}
+
+app = FastAPI(
+    title="A股主线研究台",
+    version="2.0.0",
+    description="Read-only research system for A-share era mainlines and lifecycle history.",
+)
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
+
+API_RECOMMENDED_ENTRYPOINTS = [
+    {"name": "接口说明", "path": "/api", "reason": "查看当前系统全部公开接口、参数和只读边界。"},
+    {"name": "时代主线", "path": "/api/era-mainline/latest", "reason": "读取当前时代主线格局、生命周期和四维证据。"},
+    {"name": "ChatGPT问答", "path": "/api/chatgpt-qa/latest", "reason": "读取最新一次时代主线问答及结构化摘要。"},
+    {"name": "首页主要内容", "path": "/api/index", "reason": "读取 Web 首页使用的主线、市场热度、曲线和报告列表。"},
+    {"name": "最新报告", "path": "/api/latest", "reason": "读取最新主线研究 JSON，适合作为系统集成入口。"},
+    {"name": "政策库", "path": "/api/policies", "reason": "读取倒叙政策库、板块评价和个股观察链接。"},
+    {"name": "二级主线观察", "path": "/api/taxonomy-v2", "reason": "读取最新报告派生出的二级主线重映射结果。"},
+    {"name": "主线分数历史", "path": "/api/score-series", "reason": "读取政策主线分和市场热度观察分的时间序列。"},
+    {"name": "健康状态", "path": "/api/health", "reason": "检查报告数量、最新报告 ID 和质量校验状态。"},
+]
+
+ERA_API_ENDPOINTS = [
+    {"method": "GET", "path": "/api/era-mainline", "purpose": "读取时代主线最新研究结果。", "parameters": [], "returns": "JSON，包含证据阶段、主线资格、三类置信度、有效权重和历史覆盖；lifecycle_stage、era_mainline_status、era_mainline_confidence 为兼容字段。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/latest", "purpose": "读取最新时代主线报告。", "parameters": [], "returns": "JSON，包含主线类型、结构生命周期、市场表达生命周期、分类型排名及兼容字段。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/ranking", "purpose": "读取分类型时代主线研究排序。", "parameters": [], "returns": "JSON，包含六类排名、研究对象和兼容一级主题状态。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/regime", "purpose": "读取当前主线格局。", "parameters": [], "returns": "JSON，包含格局、摘要及主次主线。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/history", "purpose": "读取所有主题历史观测。", "parameters": [], "returns": "JSON，包含按日期排序的四维分数、证据阶段和 retrospective_replay 语义。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/transitions", "purpose": "读取全部生命周期转换。", "parameters": [], "returns": "JSON，包含状态转换原因和置信度。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/theme/{theme_id}", "purpose": "读取单个时代主题详情。", "parameters": [{"name": "theme_id", "in": "path", "required": True, "description": "一级主题 ID。"}], "returns": "JSON，包含四维证据、生命周期和内部结构。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/theme/{theme_id}/timeline", "purpose": "读取单主题历史时间轴。", "parameters": [{"name": "theme_id", "in": "path", "required": True, "description": "一级主题 ID。"}], "returns": "JSON，包含分数历史和阶段转换。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/theme/{theme_id}/evidence", "purpose": "读取单主题支撑与反面证据。", "parameters": [{"name": "theme_id", "in": "path", "required": True, "description": "一级主题 ID。"}], "returns": "JSON，包含四维证据和冲突。", "read_only": True},
+    {"method": "GET", "path": "/api/era-mainline/theme/{theme_id}/invalidation", "purpose": "读取单主题失效条件。", "parameters": [{"name": "theme_id", "in": "path", "required": True, "description": "一级主题 ID。"}], "returns": "JSON，包含失效条件与反证。", "read_only": True}
+]
+
+CHATGPT_QA_API_ENDPOINTS = [
+    {"method": "GET", "path": "/api/chatgpt-qa", "purpose": "读取每日 ChatGPT 时代主线问答历史摘要列表。", "parameters": [], "returns": "JSON，包含每日报告 ID、基准日、摘要字段和排名摘要。", "read_only": True},
+    {"method": "GET", "path": "/api/chatgpt-qa/latest", "purpose": "读取最新一次 ChatGPT 时代主线问答的完整结果。", "parameters": [], "returns": "JSON，包含问题、完整回答、摘要字段表、候选主线排名和每日变化。", "read_only": True},
+    {"method": "GET", "path": "/api/chatgpt-qa/{report_id}", "purpose": "读取指定日期 ChatGPT 时代主线问答的完整结果。", "parameters": [{"name": "report_id", "in": "path", "required": True, "description": "chatgpt_qa_YYYY-MM-DD 报告 ID。"}], "returns": "JSON，包含该次问答完整原文和全部结构化字段。", "read_only": True},
+    {"method": "GET", "path": "/api/chatgpt-qa/{report_id}/markdown", "purpose": "读取指定日期 ChatGPT 问答 Markdown 原文。", "parameters": [{"name": "report_id", "in": "path", "required": True, "description": "chatgpt_qa_YYYY-MM-DD 报告 ID。"}], "returns": "text/markdown，包含摘要表、完整回答和主线排名。", "read_only": True},
+]
+
+API_SAFETY_BOUNDARIES = [
+    "/api 及目录中列出的公开接口均为 GET 只读接口。",
+    "接口只读取已生成的研究报告、快照或内存模拟结果，不触发主线重计算。",
+    "接口不会写入研究文件、配置、日志、数据库或外部系统。",
+    "接口不会下单、调仓、同步仓位、推送交易指令或连接交易终端。",
+    "模拟、敏感性和一致性接口只在内存副本上计算，不改变真实报告、分数、排序或快照。",
+]
+
+API_GROUPS = [
+    {
+        "name": "文档入口",
+        "description": "面向人工查看的页面、OpenAPI 文档和接口目录。",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/",
+                "purpose": "打开最新主线研究 Web 首页。",
+                "parameters": [],
+                "returns": "HTML 页面，展示最新政策主线、市场热度观察、分数曲线和接口说明摘要。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/reports",
+                "purpose": "打开历史研究结果列表页。",
+                "parameters": [],
+                "returns": "HTML 页面，列出可读取的历史报告。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/policies",
+                "purpose": "打开政策库倒叙展示页。",
+                "parameters": [],
+                "returns": "HTML 页面，展示官方政策信号、板块评价和个股观察链接。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/chatgpt-qa",
+                "purpose": "打开每日 ChatGPT 时代主线问答页。",
+                "parameters": [],
+                "returns": "HTML 页面，展示摘要字段表、时代主线排名、完整回答和历史问答入口。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/reports/{report_id}",
+                "purpose": "打开单份历史报告详情页。",
+                "parameters": [
+                    {"name": "report_id", "in": "path", "required": True, "description": "报告 ID。"}
+                ],
+                "returns": "HTML 页面，展示报告元信息和完整 Markdown 原文。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api",
+                "purpose": "读取统一接口目录。",
+                "parameters": [],
+                "returns": "JSON，包含系统信息、文档入口、推荐入口、安全边界、分组接口和接口总数。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/docs",
+                "purpose": "打开 Swagger UI 文档。",
+                "parameters": [],
+                "returns": "HTML OpenAPI 交互文档。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/redoc",
+                "purpose": "打开 ReDoc 文档。",
+                "parameters": [],
+                "returns": "HTML OpenAPI 阅读文档。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/openapi.json",
+                "purpose": "读取 FastAPI 生成的 OpenAPI schema。",
+                "parameters": [],
+                "returns": "JSON OpenAPI schema。",
+                "read_only": True,
+            },
+        ],
+    },
+    {
+        "name": "当前数据",
+        "description": "读取最新报告、首页数据和系统健康状态。",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/api/health",
+                "purpose": "读取系统健康状态和最新报告质量摘要。",
+                "parameters": [],
+                "returns": "JSON，包含 ok、read_only、报告数量、最新报告 ID、质量校验和检查时间。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/index",
+                "purpose": "读取首页主要内容。",
+                "parameters": [],
+                "returns": "JSON，包含最新报告摘要、政策主线、二级主线观察、市场热度观察、市场数据、分数曲线和报告列表。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/taxonomy-v2",
+                "purpose": "读取最新报告派生出的二级主线观察结果。",
+                "parameters": [],
+                "returns": "JSON，包含 taxonomy_v2 历史重映射摘要、父级分组和二级主题列表。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/latest",
+                "purpose": "读取最新主线研究报告 JSON。",
+                "parameters": [],
+                "returns": "JSON，包含 report_id 和 result 完整报告内容。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/policies",
+                "purpose": "读取倒叙政策库和政策对应的板块、个股观察链接。",
+                "parameters": [],
+                "returns": "JSON，包含 updated_at、signal_count、watchlist_version 和 policies 数组。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/mainline/latest",
+                "purpose": "读取最新主线研究报告 JSON 的兼容别名。",
+                "parameters": [],
+                "returns": "JSON，结构同 /api/latest。",
+                "read_only": True,
+            },
+        ],
+    },
+    {
+        "name": "历史数据",
+        "description": "读取历史报告列表、单份历史报告和 Markdown 原文。",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/api/reports",
+                "purpose": "读取历史报告摘要列表。",
+                "parameters": [],
+                "returns": "JSON，包含 reports 数组。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/reports/{report_id}",
+                "purpose": "读取指定报告的完整 JSON。",
+                "parameters": [
+                    {"name": "report_id", "in": "path", "required": True, "description": "报告 ID。"}
+                ],
+                "returns": "JSON，包含 report_id 和 result 完整报告内容。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/reports/{report_id}/markdown",
+                "purpose": "读取指定报告的 Markdown 原文。",
+                "parameters": [
+                    {"name": "report_id", "in": "path", "required": True, "description": "报告 ID。"}
+                ],
+                "returns": "text/markdown，报告原文。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/reports/{report_id}/taxonomy-v2",
+                "purpose": "读取指定历史报告派生出的二级主线观察结果。",
+                "parameters": [
+                    {"name": "report_id", "in": "path", "required": True, "description": "报告 ID。"}
+                ],
+                "returns": "JSON，包含 report_id 和 taxonomy_v2 派生结果。",
+                "read_only": True,
+            },
+        ],
+    },
+    {
+        "name": "分析结果",
+        "description": "读取分数曲线、解释图、反事实模拟、敏感性、核心驱动和一致性分析。",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/api/score-series",
+                "purpose": "读取主线分数历史曲线数据。",
+                "parameters": [],
+                "returns": "JSON，包含 report_count 和 themes 时间序列。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/taxonomy-v2/score-series",
+                "purpose": "读取二级主线观察的历史重映射曲线数据。",
+                "parameters": [],
+                "returns": "JSON，包含 taxonomy_v2 二级主题的政策分、市场热度分和综合分时间序列。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/explain/theme/{theme_id}",
+                "purpose": "读取指定主题的政策、事件、主题、主线解释链路。",
+                "parameters": [
+                    {"name": "theme_id", "in": "path", "required": True, "description": "主题 ID。"},
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"},
+                ],
+                "returns": "JSON，包含 trace_graph、top_policy_paths、event_breakdowns 和校验结果。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/policies/{policy_id}/audit",
+                "purpose": "读取单条政策的点时时间、字段来源、候选决策和严格主题匹配审计。",
+                "parameters": [
+                    {"name": "policy_id", "in": "path", "required": True, "description": "政策 ID。"}
+                ],
+                "returns": "JSON，包含时间来源、字段来源、候选记录、内容哈希、严格相关度及报告纳入状态。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/simulate/remove-policy/{policy_id}",
+                "purpose": "模拟移除单条政策后主线排序的变化。",
+                "parameters": [
+                    {"name": "policy_id", "in": "path", "required": True, "description": "政策 ID。"},
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"},
+                ],
+                "returns": "JSON，包含 baseline_ranking、counterfactual_ranking、theme_impacts 和影响摘要。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/simulate/remove-event/{event_cluster_id}",
+                "purpose": "模拟移除单个政策事件簇后主线排序的变化。",
+                "parameters": [
+                    {"name": "event_cluster_id", "in": "path", "required": True, "description": "政策事件簇 ID。"},
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"},
+                ],
+                "returns": "JSON，包含 baseline_ranking、counterfactual_ranking、theme_impacts 和影响摘要。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/sensitivity/theme/{theme_id}",
+                "purpose": "读取指定主题对政策和事件的敏感性排序。",
+                "parameters": [
+                    {"name": "theme_id", "in": "path", "required": True, "description": "主题 ID。"},
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"},
+                ],
+                "returns": "JSON，包含主题敏感性、关键政策、关键事件和影响排序。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/core-drivers",
+                "purpose": "读取政策层面的核心驱动排名。",
+                "parameters": [
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"}
+                ],
+                "returns": "JSON，包含各政策对主线分的总影响排名。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/consistency/oracle",
+                "purpose": "读取同一报告的多次确定性投影一致性检查。",
+                "parameters": [
+                    {"name": "runs", "in": "query", "required": False, "description": "运行次数，接口限制在 2 到 50。"},
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"},
+                ],
+                "returns": "JSON，包含一致性状态、方差、排名变化、分歧列表和根因归类。",
+                "read_only": True,
+            },
+        ],
+    },
+    {
+        "name": "系统状态",
+        "description": "读取黄金快照、漂移和当前报告对比状态。",
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/api/golden-snapshot",
+                "purpose": "读取黄金主线快照。",
+                "parameters": [],
+                "returns": "JSON，包含 golden snapshot 内容。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/drift",
+                "purpose": "读取最新报告相对黄金快照的系统漂移状态。",
+                "parameters": [],
+                "returns": "JSON，包含漂移检测结果。",
+                "read_only": True,
+            },
+            {
+                "method": "GET",
+                "path": "/api/compare",
+                "purpose": "读取指定报告或最新报告相对黄金快照的对比结果。",
+                "parameters": [
+                    {"name": "report_id", "in": "query", "required": False, "description": "可选历史报告 ID。"}
+                ],
+                "returns": "JSON，包含报告与黄金快照的对比结果。",
+                "read_only": True,
+            },
+        ],
+    },
+]
+API_GROUPS.insert(1, {"name": "时代主线", "description": "读取四维时代主线、生命周期和历史回放。", "endpoints": ERA_API_ENDPOINTS})
+API_GROUPS.insert(2, {"name": "ChatGPT问答", "description": "读取每日一次的时代主线 ChatGPT 问答及结构化摘要。", "endpoints": CHATGPT_QA_API_ENDPOINTS})
+
+
+def build_api_directory(base_url: str) -> dict[str, Any]:
+    normalized_base_url = base_url.rstrip("/")
+    return {
+        "system_name": app.title,
+        "version": app.version,
+        "description": app.description,
+        "base_url": normalized_base_url,
+        "docs": {
+            "swagger_ui": "/docs",
+            "redoc": "/redoc",
+            "openapi_json": "/openapi.json",
+        },
+        "recommended_entrypoints": API_RECOMMENDED_ENTRYPOINTS,
+        "safety": {
+            "read_only": True,
+            "no_recompute": True,
+            "no_writes": True,
+            "no_trading": True,
+            "no_sync": True,
+            "boundaries": API_SAFETY_BOUNDARIES,
+        },
+        "groups": API_GROUPS,
+        "total_endpoints": sum(len(group["endpoints"]) for group in API_GROUPS),
+    }
+
+
+def _json_files() -> list[Path]:
+    if not REPORT_DIR.exists():
+        return []
+    return sorted(REPORT_DIR.glob("mainline_review_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def _era_json_files() -> list[Path]:
+    if not ERA_REPORT_DIR.exists():
+        return []
+    return sorted(ERA_REPORT_DIR.glob("era_mainline_review_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def _chatgpt_qa_json_files() -> list[Path]:
+    if not CHATGPT_QA_DIR.exists():
+        return []
+    return sorted(CHATGPT_QA_DIR.glob("chatgpt_qa_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def _safe_chatgpt_qa_path(report_id: str, suffix: str = ".json") -> Path:
+    if not CHATGPT_QA_ID_RE.fullmatch(report_id):
+        raise HTTPException(status_code=404, detail="ChatGPT问答报告不存在")
+    path = CHATGPT_QA_DIR / f"{report_id}{suffix}"
+    if not path.exists() or path.parent != CHATGPT_QA_DIR:
+        raise HTTPException(status_code=404, detail="ChatGPT问答报告不存在")
+    return path
+
+
+def _load_chatgpt_qa(report_id: str) -> dict[str, Any]:
+    return _load_json(_safe_chatgpt_qa_path(report_id))
+
+
+def list_chatgpt_qa() -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for path in _chatgpt_qa_json_files():
+        payload = _load_json(path)
+        summary_fields = payload.get("summary_fields") if isinstance(payload.get("summary_fields"), list) else []
+        ranking = payload.get("ranking") if isinstance(payload.get("ranking"), list) else []
+        result.append(
+            {
+                "report_id": payload.get("report_id") or path.stem,
+                "basis_date": payload.get("basis_date", ""),
+                "generated_at": payload.get("generated_at", ""),
+                "source_report_id": payload.get("source_report_id", ""),
+                "summary_fields": summary_fields,
+                "ranking": ranking,
+                "daily_changes": payload.get("daily_changes") or {},
+                "report_type": payload.get("report_type", "chatgpt_era_mainline_qa"),
+                "read_only": True,
+            }
+        )
+    return result
+
+
+def load_latest_chatgpt_qa() -> tuple[str, dict[str, Any]]:
+    files = _chatgpt_qa_json_files()
+    if not files:
+        raise HTTPException(status_code=404, detail="还没有可读取的 ChatGPT 问答结果")
+    report_id = files[0].stem
+    return report_id, _load_chatgpt_qa(report_id)
+
+
+def load_latest_era_report() -> tuple[str, dict[str, Any]]:
+    files = _era_json_files()
+    if not files:
+        raise HTTPException(status_code=503, detail="时代主线报告尚未生成")
+    payload = _load_json(files[0])
+    payload.setdefault(
+        "data_freshness_summary",
+        {
+            "scoring_version": "data_freshness_guard_v1",
+            "data_freshness_status": "unknown",
+            "actual_basis_date": payload.get("basis_date", ""),
+            "freshness_warnings": ["SOURCE_REPORT_FRESHNESS_UNAVAILABLE"],
+        },
+    )
+    payload.setdefault(
+        "freshness_narrative",
+        f"市场数据截至 {payload.get('basis_date', '')}，但该历史时代主线报告没有保留政策扫描状态。",
+    )
+    return files[0].stem, payload
+
+
+def _era_theme(payload: dict[str, Any], theme_id: str) -> dict[str, Any]:
+    rows = list(payload.get("research_objects") or []) + list(payload.get("theme_states") or [])
+    item = next((row for row in rows if row.get("theme_id") == theme_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="时代主题不存在")
+    return item
+
+
+def _era_history(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = []
+    for theme in payload.get("theme_states") or []:
+        for point in theme.get("score_history") or []:
+            rows.append({"theme_id": theme.get("theme_id"), "theme_name": theme.get("theme_name"), **point})
+    return sorted(rows, key=lambda item: (item.get("date", ""), item.get("theme_id", ""), item.get("report_id", "")))
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"研究JSON无法解析: {path.name}") from exc
+
+
+def _load_optional_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
+    if not path.exists():
+        return default
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail=f"JSON无法解析: {path.name}") from exc
+    return payload if isinstance(payload, dict) else default
+
+
+def _load_policy_store() -> dict[str, Any]:
+    return _load_optional_json(POLICY_PATH, {"updated_at": "", "signals": []})
+
+
+def _load_policy_stock_watchlist() -> dict[str, Any]:
+    return _load_optional_json(
+        POLICY_STOCK_WATCHLIST_PATH,
+        {
+            "version": "",
+            "deep_research_base_url": DEFAULT_STOCK_RESEARCH_BASE_URL,
+            "themes": {},
+        },
+    )
+
+
+def _list_text(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _joined_policy_text(policy: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for field in ("title", "source", "summary", "evidence"):
+        parts.append(str(policy.get(field) or ""))
+    for field in ("key_points", "beneficiary_chain", "related_industries"):
+        parts.extend(_list_text(policy.get(field)))
+    return " ".join(part for part in parts if part)
+
+
+def _policy_matched_themes(policy: dict[str, Any]) -> list[str]:
+    related_text = " ".join(_list_text(policy.get("related_industries")))
+    full_text = _joined_policy_text(policy)
+    scores: list[tuple[int, str]] = []
+    for theme, keywords in POLICY_THEME_KEYWORDS.items():
+        score = 0
+        if theme in related_text:
+            score += 6
+        for keyword in keywords:
+            if keyword in related_text:
+                score += 3
+            elif keyword in full_text:
+                score += 1
+        if score > 0:
+            scores.append((score, theme))
+    scores.sort(key=lambda item: (-item[0], item[1]))
+    return [theme for _, theme in scores[:3]]
+
+
+def _xueqiu_symbol(code: str | None) -> str:
+    match = A_SHARE_CODE_RE.match(str(code or "").strip())
+    if not match:
+        return ""
+    return f"{match.group('market').upper()}{match.group('number')}"
+
+
+def _xueqiu_stock_url(code: str | None) -> str:
+    symbol = _xueqiu_symbol(code)
+    return f"https://xueqiu.com/S/{symbol}" if symbol else ""
+
+
+def _stock_research_url(code: str | None, base_url: str) -> str:
+    text = str(code or "").strip()
+    if not text:
+        return ""
+    return f"{base_url}{quote(text, safe='')}"
+
+
+def _watchlist_stocks_for_themes(
+    themes: list[str],
+    watchlist: dict[str, Any],
+    *,
+    limit: int = 5,
+) -> list[dict[str, Any]]:
+    base_url = str(watchlist.get("deep_research_base_url") or DEFAULT_STOCK_RESEARCH_BASE_URL)
+    theme_map = watchlist.get("themes") if isinstance(watchlist.get("themes"), dict) else {}
+    result: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+    for theme in themes:
+        for stock in theme_map.get(theme, []) or []:
+            if not isinstance(stock, dict):
+                continue
+            code = str(stock.get("code") or "").strip()
+            if not code or code in seen_codes:
+                continue
+            seen_codes.add(code)
+            item = dict(stock)
+            item["theme"] = theme
+            item["xueqiu_url"] = _xueqiu_stock_url(code)
+            item["research_url"] = _stock_research_url(code, base_url)
+            result.append(item)
+            if len(result) >= limit:
+                return result
+    return result
+
+
+def _policy_evaluation_sentence(themes: list[str], stocks: list[dict[str, Any]]) -> str:
+    if not themes:
+        return "评价：政策方向仍需人工归类，暂不映射具体板块和个股观察池。"
+    theme_text = "、".join(themes)
+    if stocks:
+        stock_text = "、".join(str(stock.get("name") or stock.get("code") or "") for stock in stocks[:3])
+        return f"评价：对{theme_text}板块偏利好，个股观察可先看{stock_text}等；仅作研究线索，不构成买卖建议。"
+    return f"评价：对{theme_text}板块偏利好，当前观察池暂无可展示个股；仅作研究线索，不构成买卖建议。"
+
+
+def _policy_rows() -> list[dict[str, Any]]:
+    store = _load_policy_store()
+    watchlist = _load_policy_stock_watchlist()
+    rows: list[dict[str, Any]] = []
+    for index, policy in enumerate(store.get("signals") or []):
+        if not isinstance(policy, dict):
+            continue
+        matched_themes = _policy_matched_themes(policy)
+        stocks = _watchlist_stocks_for_themes(matched_themes, watchlist)
+        row = {
+            "id": policy.get("id") or policy.get("policy_id") or f"policy-{index + 1}",
+            "title": policy.get("title", ""),
+            "source": policy.get("source") or policy.get("source_org") or "",
+            "published_date": policy.get("published_date") or policy.get("publish_date") or "",
+            "url": policy.get("url") or policy.get("source_url") or policy.get("official_url") or "",
+            "authority_level": policy.get("authority_level", ""),
+            "economic_scope": policy.get("economic_scope", ""),
+            "policy_score_v2": policy.get("policy_score_v2"),
+            "authority_score": policy.get("authority_score"),
+            "actionability_score": policy.get("actionability_score"),
+            "economic_scope_score": policy.get("economic_scope_score"),
+            "time_decay_score": policy.get("time_decay_score"),
+            "summary": policy.get("summary", ""),
+            "evidence": policy.get("evidence", ""),
+            "key_points": _list_text(policy.get("key_points")),
+            "beneficiary_chain": _list_text(policy.get("beneficiary_chain")),
+            "related_industries": _list_text(policy.get("related_industries")),
+            "matched_themes": matched_themes,
+            "observation_stocks": stocks,
+            "evaluation": _policy_evaluation_sentence(matched_themes, stocks),
+        }
+        rows.append(row)
+    rows.sort(key=lambda item: (str(item.get("published_date") or ""), str(item.get("id") or "")), reverse=True)
+    return rows
+
+
+def build_policy_library_payload() -> dict[str, Any]:
+    store = _load_policy_store()
+    watchlist = _load_policy_stock_watchlist()
+    rows = _policy_rows()
+    return {
+        "page": "policies",
+        "updated_at": store.get("updated_at", ""),
+        "method": store.get("method", ""),
+        "signal_count": len(rows),
+        "watchlist_version": watchlist.get("version", ""),
+        "deep_research_base_url": watchlist.get("deep_research_base_url", DEFAULT_STOCK_RESEARCH_BASE_URL),
+        "policies": rows,
+    }
+
+
+def _safe_report_path(report_id: str, suffix: str) -> Path:
+    if not REPORT_ID_RE.match(report_id):
+        raise HTTPException(status_code=404, detail="研究报告不存在")
+    path = REPORT_DIR / f"{report_id}{suffix}"
+    if not path.exists() or path.parent != REPORT_DIR:
+        raise HTTPException(status_code=404, detail="研究报告不存在")
+    return path
+
+
+def _report_id(path: Path) -> str:
+    return path.stem
+
+
+def _latest_json_path() -> Path:
+    files = _json_files()
+    if not files:
+        raise HTTPException(status_code=404, detail="还没有可读取的主线研究结果")
+    return files[0]
+
+
+def _parse_generated_at(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.replace(" CST", "")
+
+
+def _score_series_x_label(report_id: str, payload: dict[str, Any]) -> str:
+    match = REPORT_ID_TIME_RE.match(report_id)
+    if match:
+        _, month, day, hour, minute, second = match.groups()
+        return f"{month}-{day} {hour}:{minute}:{second}"
+    return _parse_generated_at(payload.get("generated_at")) or payload.get("basis_date", "")
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resonance_score(item: dict[str, Any]) -> float | None:
+    scores = [
+        _float_or_none(item.get("evidence_score")),
+        _float_or_none(item.get("ths_score")),
+        _float_or_none(item.get("etf_score")),
+    ]
+    valid_scores = [score for score in scores if score is not None]
+    if not valid_scores:
+        return None
+    return sum(valid_scores) / len(valid_scores)
+
+
+def _moneyflow_score(item: dict[str, Any]) -> float | None:
+    flow_rank = _float_or_none(item.get("flow_rank"))
+    if flow_rank is None:
+        return None
+    return flow_rank * 100
+
+
+def _moneyflow_note(item: dict[str, Any]) -> str:
+    large_net = _float_or_none(item.get("large_net"))
+    if large_net is None:
+        return "大单/特大单净额无数据"
+    return f"大单/特大单净额 {large_net:.2f}"
+
+
+def _policy_note(item: dict[str, Any]) -> str:
+    top_policy = item.get("top_policy")
+    if top_policy:
+        return str(top_policy)
+    return "无政策映射"
+
+
+def _evidence_breakdown(item: dict[str, Any]) -> list[dict[str, Any]]:
+    limit_count = int(_float_or_none(item.get("limit_count")) or 0)
+    large_net = _float_or_none(item.get("large_net")) or 0
+    rows = [
+        {
+            "label": "申万行业",
+            "score": _float_or_none(item.get("sw_score")),
+            "active": (_float_or_none(item.get("sw_score")) or 0) > 0,
+            "note": item.get("top_sw") or "无映射",
+        },
+        {
+            "label": "同花顺主题",
+            "score": _float_or_none(item.get("ths_score")),
+            "active": (_float_or_none(item.get("ths_score")) or 0) > 0,
+            "note": item.get("top_ths") or "无主题匹配",
+        },
+        {
+            "label": "ETF代理",
+            "score": _float_or_none(item.get("etf_score")),
+            "active": (_float_or_none(item.get("etf_score")) or 0) > 0,
+            "note": item.get("top_etf") or "无ETF匹配",
+        },
+        {
+            "label": "涨停结构",
+            "score": _float_or_none(item.get("limit_score")),
+            "active": limit_count > 0,
+            "note": f"匹配涨停 {limit_count} 个",
+        },
+        {
+            "label": "资金排名",
+            "score": _moneyflow_score(item),
+            "active": large_net > 0,
+            "note": _moneyflow_note(item),
+        },
+    ]
+    if "policy_score" in item or item.get("top_policy"):
+        rows.append(
+            {
+                "label": "政策信号",
+                "score": _float_or_none(item.get("policy_score")),
+                "active": int(_float_or_none(item.get("policy_evidence_count")) or 0) > 0,
+                "note": _policy_note(item),
+            }
+        )
+    return rows
+
+
+def enrich_theme_ranking(themes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched = []
+    for item in themes:
+        enriched_item = dict(item)
+        enriched_item["evidence_breakdown"] = _evidence_breakdown(item)
+        enriched_item["evidence_total"] = len(enriched_item["evidence_breakdown"])
+        enriched.append(enriched_item)
+    return enriched
+
+
+def _theme_summary_by_key(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for theme in (payload.get("theme_summary") or {}).get("themes") or []:
+        if not isinstance(theme, dict):
+            continue
+        for key in (theme.get("theme_id"), theme.get("theme_name"), theme.get("theme")):
+            text = str(key or "").strip()
+            if text:
+                result[text] = theme
+    return result
+
+
+def _rows_with_cycle_event_source(rows: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    theme_by_key = _theme_summary_by_key(payload)
+    result = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        item = dict(row)
+        if not item.get("cycle_event_age_details") and not item.get("all_event_contributors"):
+            source = (
+                theme_by_key.get(str(item.get("theme_id") or ""))
+                or theme_by_key.get(str(item.get("theme_name") or ""))
+                or theme_by_key.get(str(item.get("theme") or ""))
+            )
+            if source:
+                item["_cycle_event_contributors"] = list(
+                    source.get("all_event_contributors")
+                    or source.get("lifecycle_event_details")
+                    or source.get("top_event_contributors")
+                    or []
+                )
+        result.append(item)
+    return result
+
+
+def _event_role_label(value: Any) -> str:
+    return {
+        "primary": "主导",
+        "co_primary": "共同主导",
+        "secondary": "次级",
+        "peripheral": "边缘",
+    }.get(str(value or ""), "")
+
+
+def _event_support_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    items = []
+    for event in row.get("top_event_contributors") or []:
+        if not isinstance(event, dict):
+            continue
+        title = str(event.get("primary_policy_title") or event.get("title") or "").strip()
+        if not title:
+            title = "未命名政策事件"
+        age_number = _float_or_none(event.get("age_days"))
+        age_days = int(age_number) if age_number is not None else None
+        contribution = _float_or_none(event.get("allocated_cluster_contribution"))
+        items.append(
+            {
+                "title": title,
+                "url": str(event.get("url") or event.get("source_url") or "").strip(),
+                "source": str(event.get("source") or event.get("source_org") or "").strip(),
+                "event_activity_date": str(event.get("event_activity_date") or "").strip(),
+                "age_days": age_days,
+                "age_label": f"距基准日{age_days}天" if age_days is not None else "",
+                "role_label": _event_role_label(event.get("allocation_role")),
+                "contribution": contribution,
+                "contribution_label": f"贡献 {contribution:.4f}" if contribution is not None else "",
+            }
+        )
+    return sorted(
+        items,
+        key=lambda item: (
+            -(item.get("contribution") or 0),
+            item.get("age_days") if item.get("age_days") is not None else 9999,
+            item.get("title") or "",
+        ),
+    )
+
+
+def _rows_with_supporting_events(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for row in rows or []:
+        item = dict(row)
+        supporting_events = _event_support_items(item)
+        item["supporting_events"] = supporting_events
+        item["supporting_event_count"] = len(supporting_events)
+        item["supporting_event_summary"] = supporting_events[0]["title"] if supporting_events else "无明确政策依据"
+        result.append(item)
+    return result
+
+
+def _mainline_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = payload.get("mainline_ranking") or []
+    if rows:
+        rows = [
+            {
+                **row,
+                "policy_theme_conviction_score": row.get("policy_theme_conviction_score", row.get("mainline_score_v6")),
+            }
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        enriched = enrich_mainline_rows_with_cycle_stage(
+            _rows_with_cycle_event_source(rows, payload), _legacy_theme_rows(payload)
+        )
+        return _rows_with_supporting_events(enriched)
+    theme_summary = payload.get("theme_summary") or {}
+    if theme_summary.get("themes"):
+        return _rows_with_supporting_events(
+            enrich_mainline_rows_with_cycle_stage(build_mainline_ranking(theme_summary), _legacy_theme_rows(payload))
+        )
+    return []
+
+
+def _canonical_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = dict(payload.get("canonical_mainline_summary") or {})
+    if not summary:
+        theme_summary = payload.get("theme_summary") or {}
+        if theme_summary.get("themes"):
+            summary = build_canonical_mainline_summary(theme_summary)
+        else:
+            summary = {
+                "scoring_version": CANONICAL_MAINLINE_VERSION,
+                "default_score_field": DEFAULT_SCORE_FIELD,
+                "source_summary": "theme_summary",
+                "source_scoring_version": "",
+                "theme_count": 0,
+                "top_mainline": {},
+                "state_counts": {},
+            }
+    mainline_rows = _mainline_rows(payload)
+    if mainline_rows:
+        top = dict(summary.get("top_mainline") or {})
+        top.update(
+            {
+                key: mainline_rows[0].get(key)
+                for key in (
+                    "cycle_stage",
+                    "cycle_stage_label",
+                    "cycle_stage_priority",
+                    "cycle_time_window",
+                    "cycle_reference_window",
+                    "cycle_review_window_days",
+                    "cycle_elapsed_days",
+                    "cycle_recent_reinforcement_days",
+                    "cycle_review_remaining_days",
+                    "cycle_timing_label",
+                    "cycle_stage_reason",
+                    "cycle_stage_advice",
+                    "cycle_stage_scoring_version",
+                    "cycle_market_score",
+                    "cycle_evidence_score",
+                    "lifecycle_state_label",
+                )
+            }
+        )
+        summary["top_mainline"] = top
+        summary["cycle_stage_summary"] = build_cycle_stage_summary(mainline_rows)
+        summary["mainline_cycle_stage_version"] = CYCLE_STAGE_VERSION
+        return summary
+    summary.setdefault("cycle_stage_summary", build_cycle_stage_summary([]))
+    summary.setdefault("mainline_cycle_stage_version", CYCLE_STAGE_VERSION)
+    return summary
+
+
+def _contract_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = payload.get("contract_validation_summary")
+    if isinstance(summary, dict) and summary:
+        return summary
+    return validate_mainline_report_contract(payload)
+
+
+def _data_quality_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = payload.get("data_quality_summary")
+    if isinstance(summary, dict) and summary:
+        return summary
+    return {
+        "scoring_version": "live_report_data_guard_v2",
+        "status": "missing",
+        "required_failure_count": 0,
+        "optional_failure_count": 0,
+        "empty_optional_stage_count": 0,
+        "missing_column_stage_count": 0,
+        "stage_statuses": [],
+    }
+
+
+def _policy_provenance_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = payload.get("policy_provenance_summary")
+    if isinstance(summary, dict) and summary:
+        return summary
+    return {
+        "scoring_version": "policy_source_provenance_v2",
+        "status": "missing",
+        "raw_policy_count": 0,
+        "included_policy_count": 0,
+        "excluded_policy_count": 0,
+        "verified_count": 0,
+        "degraded_count": 0,
+        "rejected_count": 0,
+        "policies": [],
+        "excluded_policies": [],
+    }
+
+
+def _policy_snapshot_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = payload.get("policy_snapshot_summary")
+    if isinstance(summary, dict) and summary:
+        return summary
+    return {
+        "scoring_version": "policy_snapshot_integrity_v2",
+        "status": "missing",
+        "raw_policy_count": 0,
+        "changed_policy_count": 0,
+        "changed_without_revision_note_count": 0,
+        "duplicate_policy_id_conflict_count": 0,
+        "duplicate_source_url_conflict_count": 0,
+        "policies": [],
+        "removed_policies": [],
+    }
+
+
+def _snapshot_registry_update_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    summary = payload.get("snapshot_registry_update_summary")
+    if isinstance(summary, dict) and summary:
+        return summary
+    return {
+        "scoring_version": "snapshot_registry_finalization_v2",
+        "status": "missing",
+        "updated_registry_hash": "",
+        "registry_policy_count_after": 0,
+    }
+
+
+def _reproducibility_manifest(payload: dict[str, Any]) -> dict[str, Any]:
+    manifest = payload.get("reproducibility_manifest")
+    if isinstance(manifest, dict) and manifest:
+        return manifest
+    return {
+        "scoring_version": "reproducibility_manifest_v2",
+        "status": "missing",
+        "git": {},
+        "artifact_fingerprints": {},
+    }
+
+
+def _legacy_theme_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = payload.get("legacy_theme_ranking") or []
+    if rows:
+        return rows
+    return build_legacy_theme_ranking(payload.get("theme_ranking") or [])
+
+
+def _legacy_by_theme(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for row in _legacy_theme_rows(payload):
+        for key in (row.get("theme_id"), row.get("theme"), row.get("theme_name")):
+            if key:
+                result[str(key)] = row
+    return result
+
+
+def _with_canonical_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    theme_summary = result.get("theme_summary") or {}
+    if theme_summary.get("themes"):
+        result.setdefault("canonical_mainline_summary", build_canonical_mainline_summary(theme_summary))
+    if result.get("theme_ranking"):
+        result.setdefault("legacy_theme_ranking", build_legacy_theme_ranking(result.get("theme_ranking") or []))
+    result["mainline_ranking"] = _mainline_rows(result)
+    result["canonical_mainline_summary"] = _canonical_summary(result)
+    result["mainline_cycle_stage_summary"] = build_cycle_stage_summary(result.get("mainline_ranking") or [])
+    result.setdefault("data_quality_summary", _data_quality_summary(result))
+    result.setdefault("policy_provenance_summary", _policy_provenance_summary(result))
+    result.setdefault("policy_snapshot_summary", _policy_snapshot_summary(result))
+    result.setdefault("snapshot_registry_update_summary", _snapshot_registry_update_summary(result))
+    result.setdefault("reproducibility_manifest", _reproducibility_manifest(result))
+    result.setdefault("contract_validation_summary", _contract_summary(result))
+    result.setdefault("policy_time_provenance_summary", {"scoring_version": "policy_time_provenance_v1", "status": "legacy", "point_in_time_unavailable_count": 0, "policies": []})
+    result.setdefault("field_provenance_summary", {"scoring_version": "policy_field_provenance_v1", "status": "legacy", "policies": []})
+    result.setdefault("policy_candidate_summary", {"scoring_version": "policy_candidate_audit_v1", "status": "legacy", "candidate_count": 0})
+    result.setdefault("theme_relevance_input_summary", {"scoring_version": "theme_relevance_input_v1", "production_mode": "legacy", "high_inference_dependency_count": 0})
+    result.setdefault("data_freshness_summary", {"scoring_version": "data_freshness_guard_v1", "data_freshness_status": "unknown", "stale_trading_days": 0})
+    result.setdefault("score_semantics", {"field": "policy_theme_conviction_score", "compatibility_field": "mainline_score_v6", "meaning": "policy evidence strength", "not_intended_for": ["expected_return", "price_direction", "buy_signal", "position_sizing"]})
+    return result
+
+
+def _taxonomy_v2_backfill(report_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return load_or_build_taxonomy_v2(report_id, payload)
+
+
+def _with_taxonomy_v2(report_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    result = _with_canonical_fields(payload)
+    taxonomy_v2 = _taxonomy_v2_backfill(report_id, result)
+    result["taxonomy_v2_backfill"] = taxonomy_v2
+    result["taxonomy_v2_ranking"] = taxonomy_v2.get("themes") or []
+    result["taxonomy_v2_parent_groups"] = taxonomy_v2.get("parent_groups") or []
+    return result
+
+
+def _report_summary(path: Path) -> dict[str, Any]:
+    payload = _load_json(path)
+    mainline_rows = _mainline_rows(payload)
+    legacy_rows = _legacy_theme_rows(payload)
+    top_mainline = mainline_rows[0] if mainline_rows else {}
+    legacy_top = legacy_rows[0] if legacy_rows else {}
+    md_path = path.with_suffix(".md")
+    event_cluster_summary = payload.get("event_cluster_summary") or {}
+    theme_summary = payload.get("theme_summary") or {}
+    policy_stance_summary = payload.get("policy_stance_summary") or {}
+    event_theme_allocation_summary = payload.get("event_theme_allocation_summary") or {}
+    mainline_lifecycle_summary = payload.get("mainline_lifecycle_summary") or {}
+    canonical_mainline_summary = _canonical_summary(payload)
+    data_quality_summary = _data_quality_summary(payload)
+    policy_provenance_summary = _policy_provenance_summary(payload)
+    policy_snapshot_summary = _policy_snapshot_summary(payload)
+    snapshot_registry_update_summary = _snapshot_registry_update_summary(payload)
+    reproducibility_manifest = _reproducibility_manifest(payload)
+    reproducibility_artifacts = reproducibility_manifest.get("artifact_fingerprints") or {}
+    reproducibility_git = reproducibility_manifest.get("git") or {}
+    contract_validation_summary = _contract_summary(payload)
+    policy_time_provenance_summary = payload.get("policy_time_provenance_summary") or {}
+    field_provenance_summary = payload.get("field_provenance_summary") or {}
+    policy_candidate_summary = payload.get("policy_candidate_summary") or {}
+    theme_relevance_input_summary = payload.get("theme_relevance_input_summary") or {}
+    data_freshness_summary = payload.get("data_freshness_summary") or {}
+    return {
+        "report_id": _report_id(path),
+        "generated_at": payload.get("generated_at", ""),
+        "basis_date": payload.get("basis_date", ""),
+        "theme_count": len(mainline_rows) or len(legacy_rows),
+        "top_theme": top_mainline.get("theme_name") or legacy_top.get("theme", ""),
+        "top_stage": top_mainline.get("lifecycle_state") or legacy_top.get("stage", ""),
+        "top_stage_label": top_mainline.get("lifecycle_state_label") or top_mainline.get("lifecycle_state") or legacy_top.get("stage", ""),
+        "top_cycle_stage": top_mainline.get("cycle_stage_label", ""),
+        "top_mainline_cycle_stage": top_mainline.get("cycle_stage_label", ""),
+        "top_score": top_mainline.get("mainline_score_v6", legacy_top.get("evidence_score")),
+        "top_mainline_theme": top_mainline.get("theme_name", ""),
+        "top_mainline_score": top_mainline.get("mainline_score_v6"),
+        "top_mainline_lifecycle_state": top_mainline.get("lifecycle_state", ""),
+        "top_mainline_lifecycle_state_label": top_mainline.get("lifecycle_state_label", ""),
+        "top_mainline_cycle_stage_code": top_mainline.get("cycle_stage", ""),
+        "top_mainline_cycle_time_window": top_mainline.get("cycle_time_window", ""),
+        "top_mainline_cycle_timing_label": top_mainline.get("cycle_timing_label", ""),
+        "top_mainline_cycle_review_remaining_days": top_mainline.get("cycle_review_remaining_days"),
+        "default_score_field": DEFAULT_SCORE_FIELD if mainline_rows else "legacy_evidence_score",
+        "canonical_mainline_version": canonical_mainline_summary.get("scoring_version", "") if mainline_rows else "",
+        "data_quality_status": data_quality_summary.get("status", ""),
+        "data_quality_required_failure_count": data_quality_summary.get("required_failure_count", 0),
+        "data_quality_optional_failure_count": data_quality_summary.get("optional_failure_count", 0),
+        "policy_provenance_status": policy_provenance_summary.get("status", ""),
+        "policy_provenance_included_count": policy_provenance_summary.get("included_policy_count", 0),
+        "policy_provenance_excluded_count": policy_provenance_summary.get("excluded_policy_count", 0),
+        "policy_provenance_rejected_count": policy_provenance_summary.get("rejected_count", 0),
+        "policy_provenance_degraded_count": policy_provenance_summary.get("degraded_count", 0),
+        "policy_snapshot_status": policy_snapshot_summary.get("status", ""),
+        "policy_snapshot_changed_count": policy_snapshot_summary.get("changed_policy_count", 0),
+        "policy_snapshot_changed_without_revision_note_count": policy_snapshot_summary.get(
+            "changed_without_revision_note_count", 0
+        ),
+        "policy_snapshot_duplicate_policy_id_conflict_count": policy_snapshot_summary.get(
+            "duplicate_policy_id_conflict_count", 0
+        ),
+        "snapshot_registry_update_status": snapshot_registry_update_summary.get("status", ""),
+        "snapshot_registry_updated_hash": snapshot_registry_update_summary.get("updated_registry_hash", ""),
+        "reproducibility_status": reproducibility_manifest.get("status", ""),
+        "reproducibility_git_commit": reproducibility_git.get("commit", ""),
+        "reproducibility_json_hash": (reproducibility_artifacts.get("json_report") or {}).get("sha256", ""),
+        "reproducibility_markdown_hash": (reproducibility_artifacts.get("markdown_report") or {}).get("sha256", ""),
+        "contract_validation_status": contract_validation_summary.get("status", ""),
+        "contract_validation_error_count": contract_validation_summary.get("error_count", 0),
+        "contract_validation_warning_count": contract_validation_summary.get("warning_count", 0),
+        "policy_time_provenance_summary": policy_time_provenance_summary,
+        "field_provenance_summary": field_provenance_summary,
+        "policy_candidate_summary": policy_candidate_summary,
+        "theme_relevance_input_summary": theme_relevance_input_summary,
+        "data_freshness_summary": data_freshness_summary,
+        "legacy_top_theme": legacy_top.get("theme", ""),
+        "legacy_top_score": legacy_top.get("evidence_score"),
+        "has_markdown": md_path.exists(),
+        "canonical_mainline_summary": canonical_mainline_summary,
+        "data_quality_summary": data_quality_summary,
+        "policy_provenance_summary": policy_provenance_summary,
+        "policy_snapshot_summary": policy_snapshot_summary,
+        "snapshot_registry_update_summary": snapshot_registry_update_summary,
+        "reproducibility_manifest": reproducibility_manifest,
+        "contract_validation_summary": contract_validation_summary,
+        "event_cluster_summary": {
+            "raw_policy_count": event_cluster_summary.get("raw_policy_count", 0),
+            "cluster_count": event_cluster_summary.get("cluster_count", 0),
+            "deduplication_ratio": event_cluster_summary.get("deduplication_ratio", 0.0),
+        },
+        "policy_stance_summary": {
+            "scoring_version": policy_stance_summary.get("scoring_version", ""),
+            "cluster_theme_pair_count": policy_stance_summary.get("cluster_theme_pair_count", 0),
+            "supportive_count": policy_stance_summary.get("supportive_count", 0),
+            "neutral_or_mixed_count": policy_stance_summary.get("neutral_or_mixed_count", 0),
+            "restrictive_count": policy_stance_summary.get("restrictive_count", 0),
+        },
+        "event_theme_allocation_summary": {
+            "scoring_version": event_theme_allocation_summary.get("scoring_version", ""),
+            "event_theme_claim_count": event_theme_allocation_summary.get("event_theme_claim_count", 0),
+            "multi_theme_event_count": event_theme_allocation_summary.get("multi_theme_event_count", 0),
+            "capped_event_count": event_theme_allocation_summary.get("capped_event_count", 0),
+            "allocation_reduction_effect": event_theme_allocation_summary.get("allocation_reduction_effect", 0.0),
+        },
+        "mainline_lifecycle_summary": {
+            "scoring_version": mainline_lifecycle_summary.get("scoring_version", ""),
+            "accelerating_count": mainline_lifecycle_summary.get("accelerating_count", 0),
+            "sustained_count": mainline_lifecycle_summary.get("sustained_count", 0),
+            "emerging_count": mainline_lifecycle_summary.get("emerging_count", 0),
+            "cooling_count": mainline_lifecycle_summary.get("cooling_count", 0),
+        },
+        "mainline_cycle_stage_summary": build_cycle_stage_summary(mainline_rows),
+        "theme_summary": {
+            "scoring_version": theme_summary.get("scoring_version", ""),
+            "policy_stance_version": theme_summary.get("policy_stance_version", ""),
+            "event_theme_allocation_version": theme_summary.get("event_theme_allocation_version", ""),
+            "mainline_lifecycle_version": theme_summary.get("mainline_lifecycle_version", ""),
+        },
+        "top_themes": [
+            {
+                "theme_id": item.get("theme_id", ""),
+                "theme_name": item.get("theme_name", ""),
+                "theme": item.get("theme_name", ""),
+                "mainline_score_v6": item.get("mainline_score_v6"),
+                "theme_score_v5": item.get("theme_score_v5"),
+                "theme_score_v4_stance_adjusted": item.get("theme_score_v4_stance_adjusted"),
+                "theme_score_v4": item.get("theme_score_v4"),
+                "theme_score_v3_dedup": item.get("theme_score_v3_dedup"),
+                "theme_score_v3": item.get("theme_score_v3"),
+                "theme_score_v2_raw": item.get("theme_score_v2_raw"),
+                "allocation_adjustment_effect": item.get("allocation_adjustment_effect"),
+                "matched_event_cluster_count": item.get("matched_event_cluster_count"),
+                "matched_allocated_event_count": item.get("matched_allocated_event_count"),
+                "matched_policy_count_raw": item.get("matched_policy_count_raw"),
+                "deduplication_effect": item.get("deduplication_effect"),
+                "stance_adjustment_effect": item.get("stance_adjustment_effect"),
+                "primary_event_count": item.get("primary_event_count"),
+                "lifecycle_state": item.get("lifecycle_state"),
+                "lifecycle_state_label": item.get("lifecycle_state_label"),
+                "lifecycle_quality_multiplier": item.get("lifecycle_quality_multiplier"),
+                "cycle_stage": item.get("cycle_stage"),
+                "cycle_stage_label": item.get("cycle_stage_label"),
+                "cycle_time_window": item.get("cycle_time_window"),
+                "cycle_reference_window": item.get("cycle_reference_window"),
+                "cycle_review_window_days": item.get("cycle_review_window_days"),
+                "cycle_elapsed_days": item.get("cycle_elapsed_days"),
+                "cycle_recent_reinforcement_days": item.get("cycle_recent_reinforcement_days"),
+                "cycle_review_remaining_days": item.get("cycle_review_remaining_days"),
+                "cycle_timing_label": item.get("cycle_timing_label"),
+                "cycle_stage_reason": item.get("cycle_stage_reason"),
+                "supporting_events": item.get("supporting_events") or [],
+                "supporting_event_count": item.get("supporting_event_count", 0),
+                "supporting_event_summary": item.get("supporting_event_summary", ""),
+                "score_30d": item.get("score_30d"),
+                "score_90d": item.get("score_90d"),
+                "event_count_30d": item.get("event_count_30d"),
+                "event_count_90d": item.get("event_count_90d"),
+                "source_org_count_90d": item.get("source_org_count_90d"),
+                "supportive_cluster_count": item.get("supportive_cluster_count"),
+                "restrictive_cluster_count": item.get("restrictive_cluster_count"),
+            }
+            for item in mainline_rows[:3]
+        ],
+    }
+
+
+def list_reports() -> list[dict[str, Any]]:
+    return [_report_summary(path) for path in _json_files()]
+
+
+def load_report(report_id: str) -> dict[str, Any]:
+    path = _safe_report_path(report_id, ".json")
+    return _load_json(path)
+
+
+def load_markdown(report_id: str) -> str:
+    path = _safe_report_path(report_id, ".md")
+    return path.read_text(encoding="utf-8")
+
+
+def load_latest_report() -> tuple[str, dict[str, Any], str]:
+    path = _latest_json_path()
+    report_id = _report_id(path)
+    markdown = path.with_suffix(".md").read_text(encoding="utf-8") if path.with_suffix(".md").exists() else ""
+    return report_id, _load_json(path), markdown
+
+
+def build_score_series() -> dict[str, Any]:
+    points_by_theme: dict[str, list[dict[str, Any]]] = {}
+    reports = list_reports()
+    for summary in reversed(reports):
+        payload = load_report(summary["report_id"])
+        x = _score_series_x_label(summary["report_id"], payload)
+        legacy_by_theme = _legacy_by_theme(payload)
+        mainline_rows = _mainline_rows(payload)
+        source_rows = mainline_rows or _legacy_theme_rows(payload)
+        for rank, item in enumerate(source_rows, start=1):
+            theme = item.get("theme_name") or item.get("theme", "")
+            if not theme:
+                continue
+            legacy = (
+                legacy_by_theme.get(str(item.get("theme_id") or ""))
+                or legacy_by_theme.get(str(theme))
+                or {}
+            )
+            mainline_score = _float_or_none(item.get("mainline_score_v6"))
+            if mainline_score is None:
+                continue
+            default_score = mainline_score
+            default_score_field = DEFAULT_SCORE_FIELD
+            points_by_theme.setdefault(theme, []).append(
+                {
+                    "x": x,
+                    "basis_date": payload.get("basis_date", ""),
+                    "generated_at": payload.get("generated_at", ""),
+                    "score": default_score,
+                    "default_score": default_score,
+                    "default_score_field": default_score_field,
+                    "score_field": default_score_field,
+                    "legacy_evidence_score": legacy.get("evidence_score") if legacy else item.get("evidence_score"),
+                    "legacy_market_score": legacy.get("market_score") if legacy else item.get("market_score"),
+                    "legacy_policy_score": legacy.get("policy_score") if legacy else item.get("policy_score"),
+                    "evidence_score": legacy.get("evidence_score") if legacy else item.get("evidence_score"),
+                    "theme_score": legacy.get("ths_score") if legacy else item.get("ths_score"),
+                    "etf_score": legacy.get("etf_score") if legacy else item.get("etf_score"),
+                    "industry_score": legacy.get("sw_score") if legacy else item.get("sw_score"),
+                    "market_score": legacy.get("market_score") if legacy else item.get("market_score"),
+                    "policy_score": legacy.get("policy_score") if legacy else item.get("policy_score"),
+                    "mainline_score_v6": item.get("mainline_score_v6"),
+                    "policy_theme_conviction_score": item.get("policy_theme_conviction_score", item.get("mainline_score_v6")),
+                    "theme_score_v5": item.get("theme_score_v5"),
+                    "theme_score_v4_stance_adjusted": item.get("theme_score_v4_stance_adjusted"),
+                    "theme_score_v4": item.get("theme_score_v4"),
+                    "theme_score_v3_dedup": item.get("theme_score_v3_dedup"),
+                    "theme_score_v3": item.get("theme_score_v3"),
+                    "theme_score_v2_raw": item.get("theme_score_v2_raw"),
+                    "allocation_adjustment_effect": item.get("allocation_adjustment_effect"),
+                    "matched_event_cluster_count": item.get("matched_event_cluster_count"),
+                    "matched_allocated_event_count": item.get("matched_allocated_event_count"),
+                    "matched_policy_count_raw": item.get("matched_policy_count_raw"),
+                    "deduplication_effect": item.get("deduplication_effect"),
+                    "stance_adjustment_effect": item.get("stance_adjustment_effect"),
+                    "primary_event_count": item.get("primary_event_count"),
+                    "avg_allocation_share": item.get("avg_allocation_share"),
+                    "lifecycle_state": item.get("lifecycle_state"),
+                    "lifecycle_state_label": item.get("lifecycle_state_label"),
+                    "lifecycle_quality_multiplier": item.get("lifecycle_quality_multiplier"),
+                    "cycle_stage": item.get("cycle_stage"),
+                    "cycle_stage_label": item.get("cycle_stage_label"),
+                    "cycle_stage_priority": item.get("cycle_stage_priority"),
+                    "cycle_time_window": item.get("cycle_time_window"),
+                    "cycle_reference_window": item.get("cycle_reference_window"),
+                    "cycle_review_window_days": item.get("cycle_review_window_days"),
+                    "cycle_elapsed_days": item.get("cycle_elapsed_days"),
+                    "cycle_recent_reinforcement_days": item.get("cycle_recent_reinforcement_days"),
+                    "cycle_review_remaining_days": item.get("cycle_review_remaining_days"),
+                    "cycle_timing_label": item.get("cycle_timing_label"),
+                    "cycle_stage_reason": item.get("cycle_stage_reason"),
+                    "score_30d": item.get("score_30d"),
+                    "score_90d": item.get("score_90d"),
+                    "supportive_cluster_count": item.get("supportive_cluster_count"),
+                    "restrictive_cluster_count": item.get("restrictive_cluster_count"),
+                    "avg_cluster_stance_score_v2": item.get("avg_cluster_stance_score_v2"),
+                    "avg_cluster_relevance_score_v2": item.get("avg_cluster_relevance_score_v2"),
+                    "resonance_score": _resonance_score(legacy or item),
+                    "triple_confirmation": all(
+                        (_float_or_none((legacy or item).get(key)) or 0) >= 75
+                        for key in ("evidence_score", "ths_score", "etf_score")
+                    ),
+                    "stage": item.get("lifecycle_state") or item.get("stage", ""),
+                    "rank": item.get("rank", rank),
+                    "report_id": summary["report_id"],
+                }
+            )
+    return {
+        "themes": [{"theme": theme, "points": points} for theme, points in sorted(points_by_theme.items())],
+        "report_count": len(reports),
+    }
+
+
+def build_index_payload(report_id: str, payload: dict[str, Any], markdown: str) -> dict[str, Any]:
+    mainline_ranking = _mainline_rows(payload)
+    canonical_mainline_summary = _canonical_summary(payload)
+    legacy_theme_ranking = enrich_theme_ranking(_legacy_theme_rows(payload))
+    taxonomy_v2 = _taxonomy_v2_backfill(report_id, payload)
+    taxonomy_v2_ranking = taxonomy_v2.get("themes") or []
+    taxonomy_v2_top = taxonomy_v2_ranking[0] if taxonomy_v2_ranking else {}
+    legacy_top = legacy_theme_ranking[0] if legacy_theme_ranking else {}
+    theme_summary = payload.get("theme_summary") or {}
+    data_quality_summary = _data_quality_summary(payload)
+    policy_provenance_summary = _policy_provenance_summary(payload)
+    policy_snapshot_summary = _policy_snapshot_summary(payload)
+    snapshot_registry_update_summary = _snapshot_registry_update_summary(payload)
+    reproducibility_manifest = _reproducibility_manifest(payload)
+    reproducibility_artifacts = reproducibility_manifest.get("artifact_fingerprints") or {}
+    reproducibility_git = reproducibility_manifest.get("git") or {}
+    contract_validation_summary = _contract_summary(payload)
+    policy_time_provenance_summary = payload.get("policy_time_provenance_summary") or {}
+    field_provenance_summary = payload.get("field_provenance_summary") or {}
+    policy_candidate_summary = payload.get("policy_candidate_summary") or {}
+    theme_relevance_input_summary = payload.get("theme_relevance_input_summary") or {}
+    data_freshness_summary = payload.get("data_freshness_summary") or {}
+    score_semantics = payload.get("score_semantics") or {}
+    top_mainline = mainline_ranking[0] if mainline_ranking else {}
+    breadth = payload.get("breadth") or {}
+    chatgpt_qa_reports = list_chatgpt_qa()
+    latest_chatgpt_qa = chatgpt_qa_reports[0] if chatgpt_qa_reports else None
+    top_mainline_theme = top_mainline.get("theme_name", "")
+    top_mainline_score = top_mainline.get("mainline_score_v6")
+    return {
+        "page": "index",
+        "latest_report": {
+            "report_id": report_id,
+            "basis_date": payload.get("basis_date", ""),
+            "generated_at": payload.get("generated_at", ""),
+            "theme_count": len(mainline_ranking) or len(legacy_theme_ranking),
+            "top_theme": top_mainline_theme,
+            "top_stage": top_mainline.get("lifecycle_state", ""),
+            "top_score": top_mainline_score,
+            "top_mainline_theme": top_mainline_theme,
+            "top_mainline_score": top_mainline_score,
+            "top_mainline_lifecycle_state": top_mainline.get("lifecycle_state", ""),
+            "top_mainline_lifecycle_state_label": top_mainline.get("lifecycle_state_label", ""),
+            "top_mainline_cycle_stage": top_mainline.get("cycle_stage_label", ""),
+            "top_mainline_cycle_stage_code": top_mainline.get("cycle_stage", ""),
+            "top_mainline_cycle_time_window": top_mainline.get("cycle_time_window", ""),
+            "top_mainline_cycle_timing_label": top_mainline.get("cycle_timing_label", ""),
+            "top_mainline_cycle_review_remaining_days": top_mainline.get("cycle_review_remaining_days"),
+            "default_score_field": canonical_mainline_summary.get("default_score_field", DEFAULT_SCORE_FIELD),
+            "canonical_mainline_version": canonical_mainline_summary.get("scoring_version", ""),
+            "data_quality_status": data_quality_summary.get("status", ""),
+            "data_quality_required_failure_count": data_quality_summary.get("required_failure_count", 0),
+            "data_quality_optional_failure_count": data_quality_summary.get("optional_failure_count", 0),
+            "policy_provenance_status": policy_provenance_summary.get("status", ""),
+            "policy_provenance_included_count": policy_provenance_summary.get("included_policy_count", 0),
+            "policy_provenance_excluded_count": policy_provenance_summary.get("excluded_policy_count", 0),
+            "policy_provenance_rejected_count": policy_provenance_summary.get("rejected_count", 0),
+            "policy_snapshot_status": policy_snapshot_summary.get("status", ""),
+            "policy_snapshot_changed_count": policy_snapshot_summary.get("changed_policy_count", 0),
+            "policy_snapshot_changed_without_revision_note_count": policy_snapshot_summary.get(
+                "changed_without_revision_note_count", 0
+            ),
+            "policy_snapshot_duplicate_policy_id_conflict_count": policy_snapshot_summary.get(
+                "duplicate_policy_id_conflict_count", 0
+            ),
+            "snapshot_registry_update_status": snapshot_registry_update_summary.get("status", ""),
+            "snapshot_registry_updated_hash": snapshot_registry_update_summary.get("updated_registry_hash", ""),
+            "reproducibility_status": reproducibility_manifest.get("status", ""),
+            "reproducibility_git_commit": reproducibility_git.get("commit", ""),
+            "reproducibility_json_hash": (reproducibility_artifacts.get("json_report") or {}).get("sha256", ""),
+            "reproducibility_markdown_hash": (reproducibility_artifacts.get("markdown_report") or {}).get("sha256", ""),
+            "contract_validation_status": contract_validation_summary.get("status", ""),
+            "contract_validation_error_count": contract_validation_summary.get("error_count", 0),
+            "contract_validation_warning_count": contract_validation_summary.get("warning_count", 0),
+            "legacy_top_theme": legacy_top.get("theme", ""),
+            "legacy_top_score": legacy_top.get("evidence_score"),
+            "taxonomy_v2_scoring_version": taxonomy_v2.get("scoring_version", TAXONOMY_V2_VERSION),
+            "taxonomy_v2_top_theme": taxonomy_v2_top.get("theme_name", ""),
+            "taxonomy_v2_top_parent": taxonomy_v2_top.get("parent_name", ""),
+            "taxonomy_v2_top_combined_score": taxonomy_v2_top.get("combined_score"),
+            "theme_scoring_version": theme_summary.get("scoring_version", ""),
+            "mainline_lifecycle_version": theme_summary.get("mainline_lifecycle_version", ""),
+            "top_mainline_theme_v6": top_mainline_theme,
+            "top_mainline_score_v6": top_mainline_score,
+            "up_ratio": breadth.get("up_ratio"),
+            "data_freshness_status": data_freshness_summary.get("data_freshness_status", "unknown"),
+            "stale_trading_days": data_freshness_summary.get("stale_trading_days", 0),
+        },
+        "mainline_ranking": mainline_ranking,
+        "canonical_mainline_summary": canonical_mainline_summary,
+        "data_quality_summary": data_quality_summary,
+        "policy_provenance_summary": policy_provenance_summary,
+        "policy_snapshot_summary": policy_snapshot_summary,
+        "snapshot_registry_update_summary": snapshot_registry_update_summary,
+        "reproducibility_manifest": reproducibility_manifest,
+        "contract_validation_summary": contract_validation_summary,
+        "policy_time_provenance_summary": policy_time_provenance_summary,
+        "field_provenance_summary": field_provenance_summary,
+        "policy_candidate_summary": policy_candidate_summary,
+        "theme_relevance_input_summary": theme_relevance_input_summary,
+        "data_freshness_summary": data_freshness_summary,
+        "score_semantics": score_semantics,
+        "freshness_narrative": payload.get("freshness_narrative", ""),
+        "theme_ranking": legacy_theme_ranking,
+        "legacy_theme_ranking": legacy_theme_ranking,
+        "taxonomy_v2_backfill": taxonomy_v2,
+        "taxonomy_v2_ranking": taxonomy_v2_ranking,
+        "taxonomy_v2_parent_groups": taxonomy_v2.get("parent_groups") or [],
+        "event_cluster_summary": payload.get("event_cluster_summary") or {},
+        "policy_stance_summary": payload.get("policy_stance_summary") or {},
+        "event_theme_allocation_summary": payload.get("event_theme_allocation_summary") or {},
+        "mainline_lifecycle_summary": payload.get("mainline_lifecycle_summary") or {},
+        "mainline_cycle_stage_summary": build_cycle_stage_summary(mainline_ranking),
+        "theme_summary": theme_summary,
+        "market": {
+            "breadth": breadth,
+            "broad_indexes": payload.get("broad_indexes") or [],
+        },
+        "score_series": build_score_series(),
+        "taxonomy_v2_score_series": build_taxonomy_v2_score_series(),
+        "reports": list_reports(),
+        "chatgpt_qa": {
+            "latest": latest_chatgpt_qa,
+            "report_count": len(chatgpt_qa_reports),
+            "page": "/chatgpt-qa",
+            "latest_api": "/api/chatgpt-qa/latest",
+        },
+        "markdown": markdown,
+    }
+
+
+@app.get("/", response_class=HTMLResponse)
+def latest_page(request: Request) -> HTMLResponse:
+    report_id, payload, markdown = load_latest_report()
+    page_report = dict(payload)
+    page_report["mainline_ranking"] = _mainline_rows(payload)
+    page_report["canonical_mainline_summary"] = _canonical_summary(payload)
+    page_report["data_quality_summary"] = _data_quality_summary(payload)
+    page_report["policy_provenance_summary"] = _policy_provenance_summary(payload)
+    page_report["policy_snapshot_summary"] = _policy_snapshot_summary(payload)
+    page_report["snapshot_registry_update_summary"] = _snapshot_registry_update_summary(payload)
+    page_report["reproducibility_manifest"] = _reproducibility_manifest(payload)
+    page_report["contract_validation_summary"] = _contract_summary(payload)
+    page_report["policy_time_provenance_summary"] = payload.get("policy_time_provenance_summary") or {}
+    page_report["field_provenance_summary"] = payload.get("field_provenance_summary") or {}
+    page_report["policy_candidate_summary"] = payload.get("policy_candidate_summary") or {}
+    page_report["theme_relevance_input_summary"] = payload.get("theme_relevance_input_summary") or {}
+    page_report["data_freshness_summary"] = payload.get("data_freshness_summary") or {}
+    page_report["score_semantics"] = payload.get("score_semantics") or {}
+    page_report["mainline_cycle_stage_summary"] = build_cycle_stage_summary(page_report["mainline_ranking"])
+    page_report["legacy_theme_ranking"] = enrich_theme_ranking(_legacy_theme_rows(payload))
+    page_report["theme_ranking"] = page_report["legacy_theme_ranking"]
+    taxonomy_v2 = _taxonomy_v2_backfill(report_id, payload)
+    page_report["taxonomy_v2_backfill"] = taxonomy_v2
+    page_report["taxonomy_v2_ranking"] = taxonomy_v2.get("themes") or []
+    page_report["taxonomy_v2_parent_groups"] = taxonomy_v2.get("parent_groups") or []
+    reports = list_reports()
+    _, era_report = load_latest_era_report()
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "report_id": report_id,
+            "report": page_report,
+            "markdown": markdown,
+            "reports": reports,
+            "api_catalog": build_api_directory(str(request.base_url)),
+            "era": era_report,
+            "page": "latest",
+        },
+    )
+
+
+@app.get("/reports", response_class=HTMLResponse)
+def reports_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "reports.html", {"reports": list_reports(), "page": "reports"})
+
+
+@app.get("/policies", response_class=HTMLResponse)
+def policies_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "policies.html",
+        {"policy_library": build_policy_library_payload(), "page": "policies"},
+    )
+
+
+@app.get("/chatgpt-qa", response_class=HTMLResponse)
+def chatgpt_qa_page(request: Request) -> HTMLResponse:
+    report_id, payload = load_latest_chatgpt_qa()
+    return templates.TemplateResponse(
+        request,
+        "chatgpt_qa.html",
+        {"report_id": report_id, "qa": payload, "history": list_chatgpt_qa(), "page": "chatgpt-qa"},
+    )
+
+
+@app.get("/era-mainline", response_class=HTMLResponse)
+def era_mainline_page(request: Request) -> HTMLResponse:
+    _, payload = load_latest_era_report()
+    return templates.TemplateResponse(request, "era_mainline.html", {"era": payload, "page": "era"})
+
+
+@app.get("/era-mainline/{theme_id}", response_class=HTMLResponse)
+def era_theme_page(request: Request, theme_id: str) -> HTMLResponse:
+    _, payload = load_latest_era_report()
+    return templates.TemplateResponse(request, "era_theme.html", {"era": payload, "theme": _era_theme(payload, theme_id), "page": "era"})
+
+
+@app.get("/era-timeline", response_class=HTMLResponse)
+def era_timeline_page(request: Request) -> HTMLResponse:
+    _, payload = load_latest_era_report()
+    return templates.TemplateResponse(request, "era_timeline.html", {"era": payload, "history": _era_history(payload), "page": "timeline"})
+
+
+@app.get("/era-transitions", response_class=HTMLResponse)
+def era_transitions_page(request: Request) -> HTMLResponse:
+    _, payload = load_latest_era_report()
+    return templates.TemplateResponse(request, "era_transitions.html", {"era": payload, "page": "transitions"})
+
+
+@app.get("/reports/{report_id}", response_class=HTMLResponse)
+def report_page(request: Request, report_id: str) -> HTMLResponse:
+    payload = _with_canonical_fields(load_report(report_id))
+    markdown = load_markdown(report_id) if (REPORT_DIR / f"{report_id}.md").exists() else ""
+    return templates.TemplateResponse(
+        request,
+        "report.html",
+        {"report_id": report_id, "report": payload, "markdown": markdown, "page": "reports"},
+    )
+
+
+@app.get("/api/health")
+def health() -> dict[str, Any]:
+    reports = list_reports()
+    latest = reports[0] if reports else {}
+    time_summary = latest.get("policy_time_provenance_summary") or {}
+    candidate_summary = latest.get("policy_candidate_summary") or {}
+    relevance_summary = latest.get("theme_relevance_input_summary") or {}
+    freshness_summary = latest.get("data_freshness_summary") or {}
+    era_files = _era_json_files()
+    era_payload = _load_json(era_files[0]) if era_files else {}
+    return {
+        "ok": True,
+        "read_only": True,
+        "report_count": len(reports),
+        "latest_report_id": latest.get("report_id"),
+        "latest_data_quality_status": latest.get("data_quality_status"),
+        "latest_data_quality_required_failure_count": latest.get("data_quality_required_failure_count"),
+        "latest_data_quality_optional_failure_count": latest.get("data_quality_optional_failure_count"),
+        "latest_policy_provenance_status": latest.get("policy_provenance_status"),
+        "latest_policy_provenance_rejected_count": latest.get("policy_provenance_rejected_count"),
+        "latest_policy_provenance_degraded_count": latest.get("policy_provenance_degraded_count"),
+        "latest_policy_snapshot_status": latest.get("policy_snapshot_status"),
+        "latest_policy_snapshot_changed_without_revision_note_count": latest.get(
+            "policy_snapshot_changed_without_revision_note_count"
+        ),
+        "latest_policy_snapshot_duplicate_policy_id_conflict_count": latest.get(
+            "policy_snapshot_duplicate_policy_id_conflict_count"
+        ),
+        "latest_snapshot_registry_update_status": latest.get("snapshot_registry_update_status"),
+        "latest_snapshot_registry_updated_hash": latest.get("snapshot_registry_updated_hash"),
+        "latest_reproducibility_status": latest.get("reproducibility_status"),
+        "latest_reproducibility_git_commit": latest.get("reproducibility_git_commit"),
+        "latest_reproducibility_json_hash": latest.get("reproducibility_json_hash"),
+        "latest_contract_status": latest.get("contract_validation_status"),
+        "latest_contract_error_count": latest.get("contract_validation_error_count"),
+        "latest_contract_warning_count": latest.get("contract_validation_warning_count"),
+        "time_provenance_status": time_summary.get("status", "unknown"),
+        "point_in_time_unavailable_count": time_summary.get("point_in_time_unavailable_count", 0),
+        "candidate_audit_status": candidate_summary.get("status", "unknown"),
+        "high_inference_dependency_count": relevance_summary.get("high_inference_dependency_count", 0),
+        "data_freshness_status": freshness_summary.get("data_freshness_status", "unknown"),
+        "stale_trading_days": freshness_summary.get("stale_trading_days", 0),
+        "latest_era_report_id": era_payload.get("report_id"),
+        "mainline_regime": era_payload.get("mainline_regime", "data_insufficient"),
+        "checked_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+@app.get("/api")
+def api_directory(request: Request) -> dict[str, Any]:
+    return build_api_directory(str(request.base_url))
+
+
+@app.get("/api/reports")
+def api_reports() -> dict[str, Any]:
+    return {"reports": list_reports()}
+
+
+@app.get("/api/reports/{report_id}")
+def api_report(report_id: str) -> dict[str, Any]:
+    return {"report_id": report_id, "result": _with_taxonomy_v2(report_id, load_report(report_id))}
+
+
+@app.get("/api/reports/{report_id}/markdown")
+def api_report_markdown(report_id: str) -> Response:
+    return PlainTextResponse(load_markdown(report_id), media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/api/reports/{report_id}/taxonomy-v2")
+def api_report_taxonomy_v2(report_id: str) -> dict[str, Any]:
+    payload = load_report(report_id)
+    return {"report_id": report_id, "result": _taxonomy_v2_backfill(report_id, payload)}
+
+
+@app.get("/api/score-series")
+def api_score_series() -> dict[str, Any]:
+    return build_score_series()
+
+
+@app.get("/api/taxonomy-v2/score-series")
+def api_taxonomy_v2_score_series() -> dict[str, Any]:
+    return build_taxonomy_v2_score_series()
+
+
+@app.get("/api/index")
+def api_index() -> dict[str, Any]:
+    report_id, payload, markdown = load_latest_report()
+    result = build_index_payload(report_id, payload, markdown)
+    era_report_id, era = load_latest_era_report()
+    result["era_mainline"] = {
+        "report_id": era_report_id,
+        "basis_date": era.get("basis_date"),
+        "mainline_regime": era.get("mainline_regime"),
+        "primary_mainline": era.get("primary_mainline"),
+        "secondary_mainline": era.get("secondary_mainline"),
+        "emerging_candidates": era.get("emerging_candidates") or [],
+        "declining_mainlines": era.get("declining_mainlines") or [],
+        "summary": era.get("summary", ""),
+        "data_freshness_summary": era.get("data_freshness_summary") or {},
+        "freshness_narrative": era.get("freshness_narrative", ""),
+    }
+    return result
+
+
+@app.get("/api/era-mainline")
+@app.get("/api/era-mainline/latest")
+def api_era_mainline_latest() -> dict[str, Any]:
+    _, payload = load_latest_era_report()
+    return payload
+
+
+@app.get("/api/era-mainline/ranking")
+def api_era_mainline_ranking() -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    return {"report_id": report_id, "basis_date": payload.get("basis_date"), "research_objects": payload.get("research_objects") or [], "class_rankings": payload.get("class_rankings") or {}, "era_industrial_ranking": payload.get("era_industrial_ranking") or [], "strategic_growth_ranking": payload.get("strategic_growth_ranking") or [], "policy_profit_repair_ranking": payload.get("policy_profit_repair_ranking") or [], "macro_cycle_ranking": payload.get("macro_cycle_ranking") or [], "trading_branch_ranking": payload.get("trading_branch_ranking") or [], "allocation_style_ranking": payload.get("allocation_style_ranking") or [], "theme_states": payload.get("theme_states") or [], "data_freshness_summary": payload.get("data_freshness_summary") or {}, "freshness_narrative": payload.get("freshness_narrative", ""), "read_only": True}
+
+
+@app.get("/api/era-mainline/regime")
+def api_era_mainline_regime() -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    return {"report_id": report_id, "basis_date": payload.get("basis_date"), "mainline_regime": payload.get("mainline_regime"), "primary_mainline": payload.get("primary_mainline"), "secondary_mainline": payload.get("secondary_mainline"), "summary": payload.get("summary"), "data_freshness_summary": payload.get("data_freshness_summary") or {}, "freshness_narrative": payload.get("freshness_narrative", ""), "read_only": True}
+
+
+@app.get("/api/era-mainline/history")
+def api_era_mainline_history() -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    return {"report_id": report_id, "history": _era_history(payload), "milestones": payload.get("milestones") or {}, "history_semantics": payload.get("history_semantics") or {}, "read_only": True}
+
+
+@app.get("/api/era-mainline/transitions")
+def api_era_mainline_transitions() -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    return {"report_id": report_id, "transitions": payload.get("transitions") or [], "read_only": True}
+
+
+@app.get("/api/era-mainline/theme/{theme_id}")
+def api_era_theme(theme_id: str) -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    return {"report_id": report_id, "result": _era_theme(payload, theme_id), "read_only": True}
+
+
+@app.get("/api/era-mainline/theme/{theme_id}/timeline")
+def api_era_theme_timeline(theme_id: str) -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    theme = _era_theme(payload, theme_id)
+    return {"report_id": report_id, "theme_id": theme_id, "score_history": theme.get("score_history") or [], "stage_history": theme.get("stage_history") or [], "milestones": (payload.get("milestones") or {}).get(theme_id, {}), "history_coverage": theme.get("history_coverage") or {}, "history_semantics": payload.get("history_semantics") or {}, "read_only": True}
+
+
+@app.get("/api/era-mainline/theme/{theme_id}/evidence")
+def api_era_theme_evidence(theme_id: str) -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    theme = _era_theme(payload, theme_id)
+    return {"report_id": report_id, "theme_id": theme_id, "policy_dimension": theme.get("policy_dimension"), "industry_dimension": theme.get("industry_dimension"), "market_dimension": theme.get("market_dimension"), "narrative_dimension": theme.get("narrative_dimension"), "supporting_evidence": theme.get("supporting_evidence") or [], "contradicting_evidence": theme.get("contradicting_evidence") or [], "conflicts": theme.get("conflicts") or [], "momentum_state": theme.get("momentum_state"), "cooling_evidence": theme.get("cooling_evidence") or {}, "latest_reinforcement_type": theme.get("latest_reinforcement_type", "none"), "latest_reinforcement_date": theme.get("latest_reinforcement_date", ""), "latest_reinforcement_reasons": theme.get("latest_reinforcement_reasons") or [], "latest_reinforcement_changes": theme.get("latest_reinforcement_changes") or {}, "read_only": True}
+
+
+@app.get("/api/era-mainline/theme/{theme_id}/invalidation")
+def api_era_theme_invalidation(theme_id: str) -> dict[str, Any]:
+    report_id, payload = load_latest_era_report()
+    theme = _era_theme(payload, theme_id)
+    return {"report_id": report_id, "theme_id": theme_id, "invalidating_conditions": theme.get("invalidating_conditions") or [], "contradicting_evidence": theme.get("contradicting_evidence") or [], "read_only": True}
+
+
+@app.get("/api/chatgpt-qa")
+def api_chatgpt_qa() -> dict[str, Any]:
+    reports = list_chatgpt_qa()
+    return {"reports": reports, "report_count": len(reports), "read_only": True}
+
+
+@app.get("/api/chatgpt-qa/latest")
+def api_chatgpt_qa_latest() -> dict[str, Any]:
+    report_id, payload = load_latest_chatgpt_qa()
+    return {"report_id": report_id, "result": payload, "read_only": True}
+
+
+@app.get("/api/chatgpt-qa/{report_id}/markdown")
+def api_chatgpt_qa_markdown(report_id: str) -> PlainTextResponse:
+    path = _safe_chatgpt_qa_path(report_id, ".md")
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8")
+
+
+@app.get("/api/chatgpt-qa/{report_id}")
+def api_chatgpt_qa_report(report_id: str) -> dict[str, Any]:
+    return {"report_id": report_id, "result": _load_chatgpt_qa(report_id), "read_only": True}
+
+
+@app.get("/api/policies")
+def api_policies() -> dict[str, Any]:
+    return build_policy_library_payload()
+
+
+@app.get("/api/taxonomy-v2")
+def api_taxonomy_v2() -> dict[str, Any]:
+    report_id, payload, _ = load_latest_report()
+    return {"report_id": report_id, "result": _taxonomy_v2_backfill(report_id, payload)}
+
+
+@app.get("/api/latest")
+@app.get("/api/mainline/latest")
+def api_latest() -> dict[str, Any]:
+    report_id, payload, _ = load_latest_report()
+    return {"report_id": report_id, "result": _with_taxonomy_v2(report_id, payload)}
+
+
+@app.get("/api/explain/theme/{theme_id}")
+def api_explain_theme(theme_id: str, report_id: str | None = None) -> dict[str, Any]:
+    if report_id:
+        payload = load_report(report_id)
+        effective_report_id = report_id
+    else:
+        effective_report_id, payload, _ = load_latest_report()
+    try:
+        explanation = build_theme_explanation(_with_canonical_fields(payload), theme_id)
+    except ThemeExplanationNotFound as exc:
+        raise HTTPException(status_code=404, detail="主题解释不存在") from exc
+    return {"report_id": effective_report_id, "result": explanation}
+
+
+@app.get("/api/policies/{policy_id}/audit")
+def api_policy_audit(policy_id: str) -> dict[str, Any]:
+    store = _load_policy_store()
+    policy = next(
+        (item for item in store.get("signals") or [] if str(item.get("id") or item.get("policy_id") or "") == policy_id),
+        None,
+    )
+    if not isinstance(policy, dict):
+        raise HTTPException(status_code=404, detail="政策不存在")
+    report_id, report, _ = load_latest_report()
+    candidates = [item for item in load_candidates() if str(item.get("policy_id") or "") == policy_id]
+    matches = []
+    for theme in load_theme_config():
+        relevance = compute_theme_relevance_v2(policy, theme)
+        if relevance["theme_relevance_strict"] or relevance["theme_relevance_with_inference"]:
+            matches.append(relevance)
+    matches.sort(key=lambda item: (-item["theme_relevance_strict"], -item["theme_relevance_with_inference"], item["theme_id"]))
+    time_audit = audit_policy_time(policy, report_basis=report.get("basis_date"))
+    report_text = json.dumps(report.get("theme_summary") or {}, ensure_ascii=False)
+    return {
+        "policy_id": policy_id,
+        "report_id": report_id,
+        "time_provenance": time_audit,
+        "field_provenance": field_provenance_for_policy(policy),
+        "candidate_records": candidates,
+        "candidate_decision": candidates[0].get("decision", "") if candidates else "missing",
+        "content_hash": compute_policy_content_hash(policy),
+        "theme_matches": matches,
+        "theme_match_inputs": {
+            "production_mode": "strict_point_in_time",
+            "production_score_field": "theme_relevance_strict",
+            "comparison_score_field": "theme_relevance_with_inference",
+        },
+        "entered_current_report": policy_id in report_text,
+        "report_point_in_time_available_at": time_audit.get("point_in_time_available_at", ""),
+        "report_point_in_time_basis": time_audit.get("point_in_time_basis", "unavailable"),
+        "read_only": True,
+    }
+
+
+def _simulation_report(report_id: str | None) -> tuple[str, dict[str, Any]]:
+    if report_id:
+        return report_id, _with_canonical_fields(load_report(report_id))
+    latest_report_id, payload, _ = load_latest_report()
+    return latest_report_id, _with_canonical_fields(payload)
+
+
+@app.get("/api/simulate/remove-policy/{policy_id}")
+def api_simulate_remove_policy(policy_id: str, report_id: str | None = None) -> dict[str, Any]:
+    effective_report_id, payload = _simulation_report(report_id)
+    try:
+        simulation = simulate_remove_policy(payload, policy_id)
+    except CounterfactualTargetNotFound as exc:
+        raise HTTPException(status_code=404, detail="模拟目标不存在") from exc
+    return {"report_id": effective_report_id, "result": simulation}
+
+
+@app.get("/api/simulate/remove-event/{event_cluster_id}")
+def api_simulate_remove_event(event_cluster_id: str, report_id: str | None = None) -> dict[str, Any]:
+    effective_report_id, payload = _simulation_report(report_id)
+    try:
+        simulation = simulate_remove_event(payload, event_cluster_id)
+    except CounterfactualTargetNotFound as exc:
+        raise HTTPException(status_code=404, detail="模拟目标不存在") from exc
+    return {"report_id": effective_report_id, "result": simulation}
+
+
+@app.get("/api/sensitivity/theme/{theme_id}")
+def api_theme_sensitivity(theme_id: str, report_id: str | None = None) -> dict[str, Any]:
+    effective_report_id, payload = _simulation_report(report_id)
+    try:
+        sensitivity = build_theme_sensitivity(payload, theme_id)
+    except CounterfactualTargetNotFound as exc:
+        raise HTTPException(status_code=404, detail="主题敏感度不存在") from exc
+    return {"report_id": effective_report_id, "result": sensitivity}
+
+
+@app.get("/api/core-drivers")
+def api_core_drivers(report_id: str | None = None) -> dict[str, Any]:
+    effective_report_id, payload = _simulation_report(report_id)
+    return {"report_id": effective_report_id, "result": detect_core_drivers(payload)}
+
+
+@app.get("/api/consistency/oracle")
+def api_consistency_oracle(runs: int = 10, report_id: str | None = None) -> dict[str, Any]:
+    effective_report_id, payload = _simulation_report(report_id)
+    run_count = max(2, min(int(runs), 50))
+    return {"report_id": effective_report_id, "result": build_consistency_oracle(payload, run_count)}
+
+
+@app.get("/api/golden-snapshot")
+def api_golden_snapshot() -> dict[str, Any]:
+    if not GOLDEN_PATH.exists():
+        raise HTTPException(status_code=404, detail="golden snapshot does not exist")
+    return load_golden_snapshot(GOLDEN_PATH)
+
+
+@app.get("/api/drift")
+def api_drift() -> dict[str, Any]:
+    _, payload, _ = load_latest_report()
+    if not GOLDEN_PATH.exists():
+        raise HTTPException(status_code=404, detail="golden snapshot does not exist")
+    return build_drift_report(load_golden_snapshot(GOLDEN_PATH), _with_canonical_fields(payload))
+
+
+@app.get("/api/compare")
+def api_compare(report_id: str | None = None) -> dict[str, Any]:
+    if report_id:
+        payload = load_report(report_id)
+    else:
+        _, payload, _ = load_latest_report()
+    if not GOLDEN_PATH.exists():
+        raise HTTPException(status_code=404, detail="golden snapshot does not exist")
+    return build_drift_report(load_golden_snapshot(GOLDEN_PATH), _with_canonical_fields(payload))

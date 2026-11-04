@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>接口说明</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260626-detail-4" />
+  </head>
+  <body data-page="api-docs">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">API</p>
+          <h1>接口说明</h1>
+        </div>
+        <a class="back-link" href="/">返回主页</a>
+      </div>
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>接口目录</h2>
+          <span class="panel-kicker">/api</span>
+        </div>
+        <div class="api-table-wrap">
+          <table class="api-table">
+            <thead>
+              <tr>
+                <th>分组</th>
+                <th>方法</th>
+                <th>路径</th>
+                <th>说明</th>
+                <th>返回内容</th>
+                <th>边界</th>
+              </tr>
+            </thead>
+            <tbody id="apiTableBody"></tbody>
+          </table>
+        </div>
+        <p class="result-note" id="pageError"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/detail_pages.js?v=20260626-detail-4"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

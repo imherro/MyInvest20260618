@@ -1,0 +1,46 @@
+{
+  "latest_date": "2026-06-29",
+  "latest_close": 4704.9722,
+  "latest_drawdown": -0.24444154602336876,
+  "lower_fit_latest": 4835.298163685811,
+  "upper_fit_latest": 6271.557995947121,
+  "channel_pos_latest": -0.10505505563085991,
+  "channel_pos_max_latest": -0.08556656970531439,
+  "price_channel_pos_latest": 0.19207846125292985,
+  "low_20260626_close": 4672.4776,
+  "low_20260626_channel_pos": -0.1275930528811356,
+  "high_20260312_close": 6227.1452,
+  "high_20260312_channel_pos": 1.1219674608798786,
+  "high_20260312_channel_pos_max": 0.913834240265462,
+  "high_20260312_vs_upper": 0.03223003336767527,
+  "high_20260312_vs_upper_max": -0.027139192893451347,
+  "channel_lower_anchor_dates": [
+    "2016-01-28",
+    "2021-11-16",
+    "2024-09-11",
+    "2025-04-07",
+    "2026-06-26"
+  ],
+  "log_lower_slope_annualized": 0.1389543667789035,
+  "log_channel_width_pct": 0.29703645641709286,
+  "search_pe_dynamic": 12.788,
+  "search_pb": 1.17,
+  "search_close": 4704.9722,
+  "industry_date": "2026-06-29",
+  "top10_known_weight": 53.879999999999995,
+  "energy_path": [
+    {
+      "date": "2026-03-02",
+      "close": 6154.8887
+    },
+    {
+      "date": "2026-03-12",
+      "close": 6227.1452
+    },
+    {
+      "date": "2026-06-29",
+      "close": 4704.9722
+    }
+  ],
+  "csv_path": "docs\\analysis\\index_980092_trend_channel_20260630.csv"
+}

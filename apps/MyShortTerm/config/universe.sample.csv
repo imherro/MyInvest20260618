@@ -1,0 +1,6 @@
+symbol,name,market,enabled
+000001.SZ,平安银行,A-share,true
+600519.SH,贵州茅台,A-share,true
+510300.SH,沪深300ETF,A-share,true
+SPY,SPDR S&P 500 ETF,US,true
+

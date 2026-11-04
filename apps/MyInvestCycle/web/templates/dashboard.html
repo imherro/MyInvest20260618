@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyInvestCycle 宏观周期</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260708-score-signals-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="dashboard">
+    <div data-myinvest-header></div>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MyInvestCycle</p>
+          <h1>A股宏观周期总览</h1>
+        </div>
+        <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a class="is-active" href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a href="/v2">
+          <span>V2</span>
+          <strong>研究总览</strong>
+        </a>
+        <a href="/v2-validation">
+          <span>V2</span>
+          <strong>配置验证</strong>
+        </a>
+        <a href="/cycle-track">
+          <span>Outlook</span>
+          <strong>后市展望</strong>
+        </a>
+        <a href="/cycle-observation">
+          <span>History</span>
+          <strong>历史回顾</strong>
+        </a>
+        <a href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/validation">
+          <span>Validation</span>
+          <strong>验证归因</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="macro-summary-panel" id="regimePanel" aria-live="polite">
+        <div class="macro-summary-title">
+          <span>Macro Cycle</span>
+          <h2 class="help-title" id="macroSummaryHelp" tabindex="0" data-help="短期风控状态和长期主周期分开观察，避免把短期温度误读成主周期结论。">长期主周期判断</h2>
+        </div>
+        <div class="macro-summary-status">
+          <span>短期风控状态</span>
+          <strong id="regimeName">--</strong>
+        </div>
+        <div class="macro-summary-metrics">
+          <div>
+            <span>短期置信度</span>
+            <strong id="confidenceValue">--</strong>
+          </div>
+          <div>
+            <span>短期综合分</span>
+            <strong id="regimeScoreValue">--</strong>
+          </div>
+          <div>
+            <span>数据基准日</span>
+            <strong id="dataAsOfValue">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="channel-section" id="cycle-channel">
+        <section class="cycle-score-row">
+          <section class="cycle-panel" aria-live="polite">
+            <div class="cycle-cell cycle-state-cell">
+              <div class="panel-label">长期阶段定位</div>
+              <div class="cycle-title" id="cycleTitle">--</div>
+            </div>
+            <div class="cycle-cell">
+              <span>开始</span>
+              <strong id="cycleStart">--</strong>
+            </div>
+            <div class="cycle-cell">
+              <span>结束</span>
+              <strong id="cycleEnd">--</strong>
+            </div>
+            <div class="cycle-cell">
+              <span>当前位置</span>
+              <strong id="cyclePosition">--</strong>
+            </div>
+          </section>
+
+          <article class="chart-panel radar-panel">
+            <div class="panel-heading">
+              <h2 class="help-title" tabindex="0" data-help="信号区间基于5日平滑评分：趋势≤42%且宽度≤38%标为趋势宽度共振弱；综合分≥55%且趋势、宽度、流动性、波动稳定均≥45%标为短期风险解除；流动性≥48%且较20日前修复6个百分点以上标为流动性修复。">本轮信号解释与四维评分</h2>
+            </div>
+            <div class="compact-scores" id="scoreList"></div>
+            <div class="chart-box score-history-box" id="scoreHistoryChart"></div>
+            <p class="result-note" id="scoreHistoryNote">--</p>
+          </article>
+        </section>
+
+      </section>
+
+      <section class="results-overview" id="execution-channel" aria-live="polite">
+        <div class="dashboard-section-heading">
+          <div>
+            <span>Risk Execution</span>
+            <h2>风控执行</h2>
+          </div>
+          <p>把风险评分、仓位、策略路由、执行模拟和系统边界放在一起，首页直接查看当前可执行约束。</p>
+        </div>
+
+        <article class="chart-panel result-panel risk-result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="汇总当前风险等级、建议仓位和主要风控动作，是执行频道最先看的摘要。">风险总览</h2>
+            <span class="panel-kicker" id="resultsAsOf">--</span>
+          </div>
+          <div class="risk-headline">
+            <div>
+              <span>风险等级</span>
+              <strong id="riskLevel">--</strong>
+            </div>
+            <div>
+              <span>建议仓位</span>
+              <strong id="recommendedExposure">--</strong>
+            </div>
+            <div>
+              <span>执行动作</span>
+              <strong id="riskAction">--</strong>
+            </div>
+          </div>
+          <div class="risk-detail">
+            <div class="result-row">
+              <span>风险评分</span>
+              <strong id="riskScore">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略模式</span>
+              <strong id="strategyMode">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风控提示</span>
+              <strong id="riskAlert">--</strong>
+            </div>
+          </div>
+          <div class="component-list" id="riskComponents"></div>
+        </article>
+
+        <article class="chart-panel result-panel portfolio-result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把系统建议的总仓位、现金比例和策略分配拆开，检查仓位是否符合风险约束。">组合配置</h2>
+            <span class="panel-kicker">R2.1</span>
+          </div>
+          <div class="portfolio-headline">
+            <div>
+              <span>总仓位</span>
+              <strong id="portfolioExposure">--</strong>
+            </div>
+            <div>
+              <span>现金比例</span>
+              <strong id="portfolioCash">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>约束状态</span>
+            <strong id="portfolioConstraint">--</strong>
+          </div>
+          <div class="allocation-list" id="strategyAllocation"></div>
+          <p class="result-note" id="portfolioConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel strategy-route-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="显示当前允许启用哪些策略、禁用哪些策略，以及资金在策略之间如何分配。">策略路由</h2>
+            <span class="panel-kicker">R2.2</span>
+          </div>
+          <div class="route-summary">
+            <div>
+              <span>启用策略</span>
+              <strong id="routeEnabledCount">--</strong>
+            </div>
+            <div>
+              <span>禁用策略</span>
+              <strong id="routeDisabledCount">--</strong>
+            </div>
+          </div>
+          <div class="route-pill-list" id="routeEnabledList"></div>
+          <div class="route-budget-list" id="routeBudgetList"></div>
+          <div class="result-row">
+            <span>执行状态</span>
+            <strong id="routeExecutionStatus">--</strong>
+          </div>
+          <p class="result-note" id="routeConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel execution-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="只展示模拟执行意图和模拟指令，用来检查系统会如何调整仓位，不会下真实订单。">执行模拟</h2>
+            <span class="panel-kicker">R3.1</span>
+          </div>
+          <div class="execution-headline">
+            <div>
+              <span>执行模式</span>
+              <strong id="executionMode">--</strong>
+            </div>
+            <div>
+              <span>模拟指令</span>
+              <strong id="executionOrderCount">--</strong>
+            </div>
+          </div>
+          <div class="action-list">
+            <div>
+              <span>允许动作</span>
+              <p id="allowedActions">--</p>
+            </div>
+            <div>
+              <span>禁止动作</span>
+              <p id="forbiddenActions">--</p>
+            </div>
+          </div>
+          <div class="simulated-order-list" id="simulatedOrders"></div>
+          <p class="result-note" id="executionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel system-freeze-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="检查系统是否保持只读、模拟、无真实交易、无券商连接等边界。">系统冻结</h2>
+            <span class="panel-kicker">FINAL</span>
+          </div>
+          <div class="system-headline">
+            <div>
+              <span>状态</span>
+              <strong id="systemStatus">--</strong>
+            </div>
+            <div>
+              <span>层数</span>
+              <strong id="systemLayers">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>执行边界</span>
+            <strong id="systemExecutionMode">--</strong>
+          </div>
+          <div class="result-row">
+            <span>策略锁定</span>
+            <strong id="systemPolicyLocked">--</strong>
+          </div>
+          <div class="boundary-list" id="systemBoundaryList"></div>
+          <p class="result-note" id="systemConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel meta-edge-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="检测系统内部是否出现状态、风险、组合、周期之间的矛盾，用于提醒复核。">Meta Edge</h2>
+            <span class="panel-kicker">M1.1</span>
+          </div>
+          <div class="meta-edge-headline">
+            <div>
+              <span>矛盾强度</span>
+              <strong id="metaEdgeScore">--</strong>
+            </div>
+            <div>
+              <span>等级</span>
+              <strong id="metaEdgeLevel">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>触发信号</span>
+            <strong id="metaEdgeActiveCount">--</strong>
+          </div>
+          <div class="meta-signal-list" id="metaEdgeSignalList"></div>
+          <div class="meta-strength-list" id="metaEdgeStrengthList"></div>
+          <p class="result-note" id="metaEdgeConclusion">--</p>
+        </article>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/charts.js?v=20260708-score-signals-1"></script>
+    <script src="/static/dashboard.js?v=20260708-balanced-failure-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

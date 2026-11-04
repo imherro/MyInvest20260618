@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyInvestLeader</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+
+    <header class="app-title">
+      <div>
+        <h1>MyInvestLeader</h1>
+        <p id="subtitle">A股主线龙头研究与影子仓位接口</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="metrics" id="metrics"></section>
+      <section class="panel key-results-panel">
+        <div class="section-head">
+          <h2>龙头股深研 A可跟踪龙头</h2>
+          <span id="key-results-meta"></span>
+        </div>
+        <div class="key-results" id="key-results"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head">
+          <h2>每日推荐龙头历史</h2>
+          <span id="recommendation-history-meta"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>基准日</th>
+                <th>推荐龙头</th>
+                <th>当前状态</th>
+                <th>数量</th>
+                <th>报告</th>
+              </tr>
+            </thead>
+            <tbody id="recommendation-history-rows"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel document-panel">
+        <div class="section-head">
+          <h2>研究文档</h2>
+          <span id="document-meta"></span>
+        </div>
+        <div class="doc-links" id="document-links"></div>
+      </section>
+      <section class="grid">
+        <div class="panel">
+          <div class="section-head">
+            <h2>主线龙头分布</h2>
+            <span id="report-meta"></span>
+          </div>
+          <div class="chart" id="score-chart"></div>
+        </div>
+        <div class="panel">
+          <div class="section-head">
+            <h2>影子仓位接口</h2>
+            <span id="shadow-state"></span>
+          </div>
+          <div id="shadow-contract" class="contract"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>主线竞争图谱</h2>
+          <span>主题内 L1 / L2 / L3 / OUT</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>主线</th>
+                <th>L1主龙</th>
+                <th>L2次龙</th>
+                <th>L3跟随</th>
+                <th>OUT</th>
+                <th>竞争强度</th>
+                <th>换位</th>
+              </tr>
+            </thead>
+            <tbody id="competition-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>龙头候选矩阵</h2>
+          <span id="candidate-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>主线</th>
+                <th>阶段</th>
+                <th>龙头分</th>
+                <th>分层</th>
+                <th>ETF龙头</th>
+                <th>A股龙头</th>
+                <th>缺口</th>
+              </tr>
+            </thead>
+            <tbody id="theme-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>数据缺口</h2>
+          <span id="gap-count"></span>
+        </div>
+        <ul class="gap-list" id="data-gaps"></ul>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>龙头股深研</h2>
+          <span id="stock-deep-meta"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>股票</th>
+                <th>主线</th>
+                <th>龙头证据</th>
+                <th>深研评级</th>
+                <th>深研分</th>
+                <th>评分拆解</th>
+                <th>交易/估值</th>
+                <th>风险与缺口</th>
+              </tr>
+            </thead>
+            <tbody id="stock-deep-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel process-panel">
+        <div class="section-head">
+          <h2>可跟踪龙头产生过程</h2>
+          <span>/api/index · key_results.process_flow</span>
+        </div>
+        <div class="process-flow" id="process-flow"></div>
+      </section>
+
+      <section class="panel api-catalog-panel">
+        <div class="section-head">
+          <h2>接口说明</h2>
+          <span id="api-catalog-meta"></span>
+        </div>
+        <div class="api-catalog" id="api-catalog"></div>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/app.js?v=20260625_api_catalog"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]" defer></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]" defer></script>
+  </body>
+</html>

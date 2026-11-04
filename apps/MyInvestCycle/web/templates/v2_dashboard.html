@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>V2 研究总览</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260708-v2-dashboard-1" />
+  </head>
+  <body data-page="v2-dashboard">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">V2 Research</p>
+          <h1>V2 研究总览</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+          <a class="back-link" href="/">返回首页</a>
+        </div>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a class="is-active" href="/v2">
+          <span>V2</span>
+          <strong>研究总览</strong>
+        </a>
+        <a href="/v2-validation">
+          <span>Validation</span>
+          <strong>配置验证</strong>
+        </a>
+        <a href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/validation">
+          <span>Validation</span>
+          <strong>验证归因</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="v2-hero chart-panel" aria-live="polite">
+        <div>
+          <span>V2 Decision Chain</span>
+          <h2 id="v2Headline">--</h2>
+        </div>
+        <div class="v2-hero-metrics">
+          <div>
+            <span>数据基准日</span>
+            <strong id="v2AsOf">--</strong>
+          </div>
+          <div>
+            <span>风险预算</span>
+            <strong id="v2RiskBudget">--</strong>
+          </div>
+          <div>
+            <span>权益参与区间</span>
+            <strong id="v2ExposureRange">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="v2-dashboard-grid">
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>Market Environment</h2>
+            <span class="panel-kicker">Macro + Structure</span>
+          </div>
+          <div class="v2-metric-grid">
+            <div><span>宏观状态</span><strong id="macroState">--</strong></div>
+            <div><span>宏观分</span><strong id="macroScore">--</strong></div>
+            <div><span>市场结构</span><strong id="structureState">--</strong></div>
+            <div><span>结构分</span><strong id="structureScore">--</strong></div>
+          </div>
+          <div class="v2-row"><span>结构宽度</span><strong id="structureBreadth">--</strong></div>
+          <div class="v2-row"><span>流动性</span><strong id="structureLiquidity">--</strong></div>
+        </article>
+
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>Opportunity</h2>
+            <span class="panel-kicker">Industry + Structural Bull</span>
+          </div>
+          <div class="v2-metric-grid">
+            <div><span>结构状态</span><strong id="structuralState">--</strong></div>
+            <div><span>结构信心</span><strong id="structuralConfidence">--</strong></div>
+            <div><span>行业机会分</span><strong id="industryScore">--</strong></div>
+            <div><span>主线持续性</span><strong id="themePersistence">--</strong></div>
+          </div>
+          <div class="v2-list" id="topThemes"></div>
+        </article>
+
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>Risk</h2>
+            <span class="panel-kicker">Theme Risk</span>
+          </div>
+          <div class="v2-metric-grid">
+            <div><span>主题风险</span><strong id="themeRiskLevel">--</strong></div>
+            <div><span>质量分</span><strong id="qualityScore">--</strong></div>
+            <div><span>拥挤分</span><strong id="crowdingScore">--</strong></div>
+            <div><span>Top 主题</span><strong id="topThemeName">--</strong></div>
+          </div>
+          <div class="v2-list warning-list" id="themeWarnings"></div>
+        </article>
+
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>Decision</h2>
+            <span class="panel-kicker">Allocation Intent + Trace</span>
+          </div>
+          <div class="v2-metric-grid">
+            <div><span>结构牛细分</span><strong id="allocationStructuralState">--</strong></div>
+            <div><span>基础预算</span><strong id="baseBudget">--</strong></div>
+            <div><span>调整</span><strong id="budgetDelta">--</strong></div>
+            <div><span>最终预算</span><strong id="finalBudget">--</strong></div>
+            <div><span>审计</span><strong id="auditPassed">--</strong></div>
+          </div>
+          <div class="v2-list" id="stylePreference"></div>
+          <div class="v2-list warning-list" id="conflictList"></div>
+        </article>
+      </section>
+
+      <article class="chart-panel v2-trace-panel">
+        <div class="panel-heading">
+          <h2>决策路径</h2>
+          <span class="panel-kicker">Trace</span>
+        </div>
+        <div class="v2-trace" id="decisionTrace"></div>
+        <p class="result-note" id="v2Error"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/v2_dashboard.js?v=20260708-v2-dashboard-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+thresholds:
+  regime_risk_divergence: 0.25
+  hazard_mismatch: 0.30
+  portfolio_gap: 0.20
+  regime_age: 0.80
+
+weights:
+  regime_risk_divergence: 0.35
+  hazard_mismatch: 0.25
+  portfolio_gap: 0.20
+  regime_age: 0.20
+
+windows:
+  hazard_recent: 20
+  hazard_baseline: 80

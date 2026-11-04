@@ -1,0 +1,31 @@
+risk:
+  low_max: 0.33
+  medium_max: 0.66
+
+bull:
+  base_exposure: 0.85
+  min_exposure: 0.40
+  max_exposure: 1.00
+  leverage_allowed: true
+  strategy_mode: trend_following
+
+range:
+  base_exposure: 0.50
+  min_exposure: 0.20
+  max_exposure: 0.65
+  leverage_allowed: false
+  strategy_mode: mean_reversion
+
+bear:
+  base_exposure: 0.20
+  min_exposure: 0.00
+  max_exposure: 0.35
+  leverage_allowed: false
+  strategy_mode: defensive_cash
+
+transition:
+  base_exposure: 0.30
+  min_exposure: 0.05
+  max_exposure: 0.45
+  leverage_allowed: false
+  strategy_mode: reduce_trading

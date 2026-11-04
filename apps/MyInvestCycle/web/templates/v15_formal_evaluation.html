@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>V15 正式评价</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260721-v15-formal-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="v15-formal-evaluation">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page v15-evaluation-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">V15 Formal Evaluation</p>
+          <h1>宏观周期 + 回撤策略正式评价</h1>
+        </div>
+        <a class="back-link" href="/validation">返回验证归因</a>
+      </div>
+
+      <section class="v15-eval-verdict" aria-live="polite">
+        <div>
+          <span>正式结论</span>
+          <strong id="formalVerdict">--</strong>
+        </div>
+        <p id="formalConclusion">正在读取评价结果。</p>
+      </section>
+
+      <section class="v15-eval-assumptions" aria-label="评价口径">
+        <div><span>回测区间</span><strong id="evaluationPeriod">--</strong></div>
+        <div><span>回撤信号</span><strong>000300.SH 价格指数</strong></div>
+        <div><span>收益与基准</span><strong>H00300.CSI 全收益指数</strong></div>
+        <div><span>交易成本</span><strong>单边仓位变化 15bp</strong></div>
+      </section>
+
+      <section class="results-overview v15-eval-content">
+        <article class="chart-panel result-panel wide-analysis-panel">
+          <div class="panel-heading">
+            <h2>全周期核心对比</h2>
+            <span class="panel-kicker">2016 起 · 分红再投资 · 15bp</span>
+          </div>
+          <div class="v15-eval-table-wrap">
+            <table class="v15-eval-table">
+              <thead>
+                <tr><th>对象</th><th>累计收益</th><th>年化收益</th><th>年化超额</th><th>最大回撤</th><th>夏普</th><th>Calmar</th></tr>
+              </thead>
+              <tbody id="formalMetricsBody"></tbody>
+            </table>
+          </div>
+          <div class="chart-box v15-eval-chart" id="formalEquityChart"></div>
+        </article>
+
+        <article class="chart-panel result-panel wide-analysis-panel v15-eval-interpretation">
+          <div class="panel-heading"><h2>这项结果说明什么</h2><span class="panel-kicker">收益主线与风控定位</span></div>
+          <div class="v15-eval-insight-grid">
+            <div>
+              <span>收益判断</span>
+              <strong>长期持有宽基更适合作为收益主线</strong>
+              <p>即使不计交易成本，V15年化也只有 <b id="noCostCagr">--</b>，仍低于全收益基准。说明现有择时规则没有创造Alpha，低仓位反而损失了长期市场风险溢价。</p>
+            </div>
+            <div>
+              <span>成本归因</span>
+              <strong>调仓进一步侵蚀收益</strong>
+              <p>15bp成本令策略年化再下降 <b id="costDrag">--</b>；平均仓位 <b id="averageExposure">--</b>，年均单边换手约 <b id="annualTurnover">--</b>。问题既来自频繁调仓，也来自长期仓位不足。</p>
+            </div>
+            <div>
+              <span>风险价值</span>
+              <strong>它是回撤保护层，不是Alpha策略</strong>
+              <p>策略将最大回撤减少约 <b id="drawdownImprovement">--</b>，Calmar有所改善，但夏普仍低于全收益基准。减少回撤是它目前唯一明确的可用价值。</p>
+            </div>
+            <div>
+              <span>研究方向</span>
+              <strong>保留核心仓位，只对局部仓位低频风控</strong>
+              <p>后续应测试“长期核心宽基 + 小比例战术风控”，并要求周期后段、估值拥挤和趋势破坏共同确认后才减仓。这里是待验证的研究假设，不是当前仓位建议。</p>
+            </div>
+          </div>
+          <p class="v15-eval-bottom-line">正式结论：不支持根据短期状态频繁大幅调整全部仓位；支持把长期持有作为主线，把低频风控作为有限的辅助保护。</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading"><h2>滚动样本外验证</h2><span class="panel-kicker">仅用此前年度选参</span></div>
+          <div class="metric-card-grid">
+            <div><span>策略年化</span><strong id="oosCagr">--</strong></div>
+            <div><span>全收益基准</span><strong id="oosBenchmarkCagr">--</strong></div>
+            <div><span>年化超额</span><strong id="oosAlpha">--</strong></div>
+            <div><span>最大回撤</span><strong id="oosDrawdown">--</strong></div>
+            <div><span>Calmar</span><strong id="oosCalmar">--</strong></div>
+            <div><span>成本</span><strong id="oosCost">--</strong></div>
+          </div>
+          <p class="result-note" id="oosConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading"><h2>正式门槛</h2><span class="panel-kicker">全部通过才可推进</span></div>
+          <div class="v15-eval-checks" id="formalChecks"></div>
+        </article>
+
+        <article class="chart-panel result-panel wide-analysis-panel">
+          <div class="panel-heading"><h2>策略规则</h2><span class="panel-kicker">收盘判断 · 下一交易日执行</span></div>
+          <div class="v15-rule-grid">
+            <div><strong>周期初期 / 扩张</strong><span>基础85%；价格指数回撤达到8%时升至100%</span></div>
+            <div><strong>结构轮动</strong><span>基础65%；回撤达到10%时升至75%</span></div>
+            <div><strong>周期后段</strong><span>基础55%；回撤达到5%时降至30%</span></div>
+            <div><strong>收缩期</strong><span>基础25%；回撤达到5%时降至15%</span></div>
+          </div>
+          <p class="result-note">价格指数只负责生成回撤信号；所有持有收益和基准收益均使用全收益指数。现金部分按年化2%计算，每次绝对仓位变化扣除15bp单边成本。</p>
+        </article>
+
+        <article class="chart-panel result-panel wide-analysis-panel v15-eval-boundary">
+          <div class="panel-heading"><h2>评价边界</h2><span class="panel-kicker">研究回测</span></div>
+          <p>历史宏观阶段仍缺少完整的严格时点证据，不能排除事后重建偏差。本页不生成当前仓位、标的、买卖信号或订单，也不代表策略可投入实盘。</p>
+        </article>
+      </section>
+      <p class="result-note" id="pageError"></p>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/v15_formal_evaluation.js?v=20260721-v15-formal-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

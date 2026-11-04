@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Macro-Style-ETF 分层策略回测</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260630-annualized-table-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="strategy-macro-style">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page strategy-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">Macro-Style-ETF</p>
+          <h1>分层组合策略回测</h1>
+        </div>
+        <a class="back-link" href="/strategies">返回策略频道</a>
+      </div>
+
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+
+      <section class="results-overview strategy-overview" aria-live="polite">
+        <article class="chart-panel result-panel strategy-method-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="M2.1 把宏观周期、风格分配、ETF 映射三层解耦：宏观只控制仓位上限，风格只分配权益内部权重，ETF 层只做执行映射。">策略口径</h2>
+            <span class="panel-kicker">M2.1</span>
+          </div>
+          <div class="strategy-method-list">
+            <div>
+              <span>宏观层</span>
+              <strong>决定权益仓位上限</strong>
+            </div>
+            <div>
+              <span>风格层</span>
+              <strong>分配成长/价值/小盘/红利低波</strong>
+            </div>
+            <div>
+              <span>ETF 层</span>
+              <strong>映射到 510300 / 510880 / 510500 / 159915 / 511880</strong>
+            </div>
+          </div>
+          <p class="result-note">
+            现金/债券代理通过 511880 体现。该页展示的是模拟回测轨迹，不代表真实交易指令。
+          </p>
+        </article>
+
+        <article class="chart-panel result-panel strategy-current-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="取分层回测最后一次信号，展示当时宏观状态、目标权益仓位、主要风格和最终 ETF 权重。">最近一次分层信号</h2>
+            <span class="panel-kicker">最新回测点</span>
+          </div>
+          <div class="rotation-headline">
+            <div>
+              <span>日期 / 状态</span>
+              <strong id="macroLatestRegime">--</strong>
+            </div>
+            <div>
+              <span>目标权益</span>
+              <strong id="macroLatestExposure">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>主风格</span>
+            <strong id="macroLatestStyle">--</strong>
+          </div>
+          <div class="result-row">
+            <span>ETF 权重</span>
+            <strong id="macroLatestEtf">--</strong>
+          </div>
+          <div class="result-row">
+            <span>换手</span>
+            <strong id="macroLatestTurnover">--</strong>
+          </div>
+          <p class="result-note" id="macroLatestReason">--</p>
+        </article>
+      </section>
+
+      <article class="chart-panel result-panel macro-style-etf-panel wide-analysis-panel strategy-chart-panel">
+        <div class="panel-heading">
+          <h2 class="help-title" tabindex="0" data-help="检验 Macro-Style-ETF 分层规则在历史区间的收益、回撤、命中率和基准对比；图底部状态色带展示宏观状态和回看确认状态。">Macro-Style-ETF 分层回测</h2>
+          <div class="panel-actions">
+            <span class="panel-kicker">M2.1</span>
+            <button class="panel-link panel-button" id="macroStyleReset" type="button">还原图表</button>
+            <a class="panel-link" href="/macro-style-history">调仓历史</a>
+          </div>
+        </div>
+        <div class="wide-panel-layout">
+          <div class="wide-panel-metrics">
+            <div class="backtest-headline">
+              <div>
+                <span>Alpha vs 510500</span>
+                <strong id="macroStyleAlpha510500">--</strong>
+              </div>
+              <div>
+                <span>Alpha vs 等权</span>
+                <strong id="macroStyleAlphaEqual">--</strong>
+              </div>
+            </div>
+            <div class="metric-card-grid">
+              <div>
+                <span>分层收益</span>
+                <strong id="macroStyleReturn">--</strong>
+              </div>
+              <div>
+                <span>510500收益</span>
+                <strong id="macroStyle510500Return">--</strong>
+              </div>
+              <div>
+                <span>等权收益</span>
+                <strong id="macroStyleEqualReturn">--</strong>
+              </div>
+              <div>
+                <span>夏普</span>
+                <strong id="macroStyleSharpe">--</strong>
+              </div>
+              <div>
+                <span>样本</span>
+                <strong id="macroStyleSessions">--</strong>
+              </div>
+              <div>
+                <span>再平衡</span>
+                <strong id="macroStyleRebalance">--</strong>
+              </div>
+            </div>
+            <div class="backtest-comparison-table" id="macroStyleComparison"></div>
+            <div class="result-row">
+              <span>最大回撤</span>
+              <strong id="macroStyleDrawdown">--</strong>
+            </div>
+            <div class="result-row">
+              <span>命中率</span>
+              <strong id="macroStyleHitRate">--</strong>
+            </div>
+            <p class="result-note" id="macroStyleConclusion">--</p>
+          </div>
+          <div class="chart-box macro-style-etf-box strategy-backtest-chart" id="macroStyleEtfChart"></div>
+        </div>
+      </article>
+
+      <p class="result-note" id="pageError"></p>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260630-annualized-table-1"></script>
+    <script src="/static/strategy_pages.js?v=20260630-annualized-table-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

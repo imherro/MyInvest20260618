@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myinvest-strategy-index"
+version = "0.1.0"
+description = "Standalone strategy index comparison page."
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "matplotlib>=3.8",
+  "python-dotenv>=1.0",
+  "tushare>=1.4",
+]
+
+[project.scripts]
+myinvest-strategy-index = "myinvest_strategy_index.webapp:main"
+myinvest-calmar-optimizer = "myinvest_strategy_index.calmar_optimizer:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

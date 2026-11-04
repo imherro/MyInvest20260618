@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Macro-Style-ETF 分层调仓历史</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260629-strategy-suite-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="macro-style-history">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">Macro-Style-ETF</p>
+          <h1>分层组合调仓历史</h1>
+        </div>
+        <a class="back-link" href="/strategy/macro-style">返回策略页</a>
+      </div>
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>再平衡记录</h2>
+          <span class="panel-kicker" id="historyCount">--</span>
+        </div>
+        <div class="history-table-wrap macro-history-table-wrap">
+          <table class="history-table macro-history-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>状态 / 仓位</th>
+                <th>调仓原因</th>
+                <th>权益风格</th>
+                <th>最终 ETF 仓位</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+        <p class="result-note">
+          分层组合调仓历史来自 M2.1 回测信号。权益风格是目标权益内部的风格拆分，不含现金；现金/债券代理在最终 ETF 仓位中体现为 511880.SH。这里展示的是模拟回测轨迹，不代表真实交易指令。
+        </p>
+        <p class="result-note" id="pageError"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260629-strategy-suite-1"></script>
+    <script src="/static/detail_pages.js?v=20260629-strategy-suite-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

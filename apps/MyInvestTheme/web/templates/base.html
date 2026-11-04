@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}A股主线研究台{% endblock %}</title>
+    <link rel="stylesheet" href="/static/styles.css?v=era-mainline-phase3">
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+    <section class="appbar" aria-label="主线研究站内导航">
+      <div>
+        <div class="app-title">A股主线研究台</div>
+        <div class="app-subtitle">只读展示 · 历史回看 · 分数曲线 · 最新报告API</div>
+      </div>
+      <nav class="nav">
+        <a class="{{ 'active' if page == 'latest' else '' }}" href="/">最新研究</a>
+        <a class="{{ 'active' if page == 'era' else '' }}" href="/era-mainline">时代主线</a>
+        <a class="{{ 'active' if page == 'timeline' else '' }}" href="/era-timeline">历史时间轴</a>
+        <a class="{{ 'active' if page == 'transitions' else '' }}" href="/era-transitions">阶段转换</a>
+        <a class="{{ 'active' if page == 'reports' else '' }}" href="/reports">历史研究</a>
+        <a class="{{ 'active' if page == 'policies' else '' }}" href="/policies">政策库</a>
+        <a class="{{ 'active' if page == 'chatgpt-qa' else '' }}" href="/chatgpt-qa">ChatGPT问答</a>
+        <a href="/api/latest">最新API</a>
+      </nav>
+    </section>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="https://invest.okbbc.com/header.js" defer></script>
+    <script src="/static/app.js?v=era-mainline-v1"></script>
+    {% block scripts %}{% endblock %}
+    <script src="https://invest.okbbc.com/footer.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>策略回测</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260701-dual-ma-6" />
+  </head>
+  <body data-page="strategies" data-results-page="1">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Strategies</p>
+          <h1>策略回测</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+          <a class="back-link" href="/">返回首页</a>
+        </div>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a href="/cycle-track">
+          <span>Outlook</span>
+          <strong>后市展望</strong>
+        </a>
+        <a href="/cycle-observation">
+          <span>History</span>
+          <strong>历史回顾</strong>
+        </a>
+        <a class="is-active" href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/validation">
+          <span>Validation</span>
+          <strong>验证归因</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="channel-section" aria-live="polite">
+        <div class="dashboard-section-heading">
+          <div>
+            <span>Strategy Directory</span>
+            <h2>策略目录</h2>
+          </div>
+          <p>默认按年化收益从高到低排序；点击表头可切换排序；含未来函数或回看锚点的策略会红色标注并固定放在最后。</p>
+        </div>
+
+        <div class="strategy-directory-grid" id="strategyDirectoryGrid">
+          <article class="chart-panel strategy-directory-card">
+            <div class="strategy-card-loading">策略表格加载中</div>
+          </article>
+        </div>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/charts.js?v=20260701-dual-ma-6"></script>
+    <script src="/static/dashboard.js?v=20260708-balanced-failure-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

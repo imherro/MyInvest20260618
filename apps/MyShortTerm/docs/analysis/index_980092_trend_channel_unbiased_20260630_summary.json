@@ -1,0 +1,27 @@
+{
+  "latest_date": "2026-06-29",
+  "latest_close": 4704.9722,
+  "latest_drawdown": -0.24444154602336876,
+  "lower_fit_latest_unbiased": 4937.999996781135,
+  "upper_fit_latest_unbiased_q985": 6395.958785793211,
+  "upper_fit_latest_unbiased_max": 6813.577186574502,
+  "mid_fit_latest_unbiased": 5619.897193335404,
+  "latest_pos_q985": -0.18685509094895245,
+  "latest_pos_max": -0.15014596491090187,
+  "latest_vs_lower_pct": -0.047190724368780024,
+  "latest_vs_mid_pct": -0.16280101963794058,
+  "low_20260626_pos_q985": -0.20942349357456685,
+  "low_20260626_vs_lower_pct": -0.05273756921698436,
+  "high_20260312_pos_q985": 1.0499448179660036,
+  "high_20260312_vs_upper_pct": 0.013004859229776677,
+  "high_20260312_pos_max": 0.8436750478464318,
+  "log_lower_slope_annualized_unbiased": 0.1421686919815035,
+  "channel_width_q985_pct": 0.2952528938765604,
+  "channel_width_max_pct": 0.37982527157067203,
+  "anchor_dates": [
+    "2016-01-28",
+    "2021-11-16",
+    "2024-09-11",
+    "2025-04-07"
+  ]
+}

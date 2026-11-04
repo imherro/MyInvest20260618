@@ -1,0 +1,10 @@
+pandas>=2.2
+numpy>=1.26
+requests>=2.31
+python-dotenv>=1.0
+tushare>=1.4
+baostock>=0.9.1
+yfinance>=0.2
+fredapi>=0.5
+pytest>=8.0
+

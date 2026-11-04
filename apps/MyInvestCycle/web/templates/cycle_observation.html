@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>历史回顾</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260626-detail-4" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="cycle-observation">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">History</p>
+          <h1>历史回顾</h1>
+        </div>
+        <a class="back-link" href="/">返回主页</a>
+      </div>
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+      <article class="detail-chart-card">
+        <div class="panel-heading">
+          <h2>上证指数与主周期切分</h2>
+          <span class="panel-kicker">market cycle</span>
+        </div>
+        <div class="chart-box long-index-box" id="indexChart"></div>
+      </article>
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>主要周期切块</h2>
+          <span class="panel-kicker">按时间倒序</span>
+        </div>
+        <section class="cycle-blocks" id="cycleBlocks" aria-live="polite"></section>
+        <p class="result-note" id="pageError"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260626-detail-4"></script>
+    <script src="/static/detail_pages.js?v=20260626-detail-4"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

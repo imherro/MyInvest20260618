@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ETF 轮动调仓历史</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260629-strategy-suite-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="rotation-history">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">ETF Rotation</p>
+          <h1>ETF 轮动调仓历史</h1>
+        </div>
+        <a class="back-link" href="/strategy/etf-rotation">返回策略页</a>
+      </div>
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>再平衡记录</h2>
+          <span class="panel-kicker" id="historyCount">--</span>
+        </div>
+        <div class="history-table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>状态</th>
+                <th>轮动方向</th>
+                <th>换手</th>
+                <th>调仓原因</th>
+                <th>本次目标仓位</th>
+                <th>模型候选评分</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody"></tbody>
+          </table>
+        </div>
+        <p class="result-note" id="pageError"></p>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260629-strategy-suite-1"></script>
+    <script src="/static/detail_pages.js?v=20260629-strategy-suite-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

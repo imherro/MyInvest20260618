@@ -1,5 +1,19 @@
 # MyInvest20260618 Web Hub
 
+## 统一源码仓库
+
+13 个子系统源码已汇集到 `apps/`，清单见 `subsystems.json`。
+旧仓库、运行数据、现有进程和自动化工作目录保持不变；此次仅合并源码，未切换生产部署。
+迁移范围、来源提交、运行与测试方式见 [迁移说明](docs/migration/README.md)。
+
+```powershell
+python scripts/subsystems.py list
+python scripts/test_subsystems.py --data-root C:\Users\kunpeng\Documents --timeout 1200
+```
+
+测试在 `temp/monorepo-tests/` 中的独立副本运行。`--data-root` 仅用于复制已登记的历史报告测试输入，不会在旧库中运行测试或写入数据。
+日常修改和提交从本仓库统一进行；旧库暂时保留历史和现有部署，不自动接收新代码。
+
 一个本地 Web 总览页，用于汇聚多个研究频道信息：
 
 - 市场：`https://market.okbbc.com/api/index`

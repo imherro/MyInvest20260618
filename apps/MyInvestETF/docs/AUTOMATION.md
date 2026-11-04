@@ -1,0 +1,64 @@
+# Codex 自动化设计
+
+## 任务拆分
+
+ETF 深研必须按队列逐只研究。单条研究任务一次只研究一只 ETF；自动化启动一次后，应连续消化所有可领取队列任务，任务之间间隔 10 分钟。自动化只分为两类：
+
+1. `MyInvestETF ETF 输入读取入队`
+2. `MyInvestETF ETF 完整深研队列消化`
+
+队列任务提示词的完整执行包设计见 [QUEUE_PROMPTS.md](QUEUE_PROMPTS.md)。自动化必须通过 `python scripts/generate_single_etf_prompt.py --next --claim` 领取任务，并使用该命令输出的“队列任务元数据 + 队列任务提示词”作为唯一执行依据。
+
+## ETF 输入读取入队
+
+用途：读取 ETF 输入源，更新今日待研队列，不做深研。
+
+规则：
+
+- 默认读取 `https://theme.okbbc.com/api/latest` 的 `result.theme_ranking[].top_etf`、`result.etf_top` 和 `taxonomy_v2_ranking`，并兼容旧 `/api/index` 结构。
+- 每条主线至少保留一个 ETF 代表进入研究队列；同一主线内优先选择有成交额且成交额最大的 ETF，缺成交额时使用 `top_etf` 的第一位。
+- 二级主题/行业反转 ETF 只从 `result.etf_top + taxonomy_v2_ranking` 产生，补充未被主线代表覆盖的行业轮动和底部反转线索；同一二级主题保留成交额最大的 ETF。
+- 本地独立补齐上证综指、上证50、沪深300、中证500、中证1000、创业板、科创50 等核心宽基 ETF 研究对象；宽基不是从可跟踪主线龙头推导。
+- 本地独立补齐 `159201.SZ` 自由现金流 ETF 和 `512890.SH` 红利低波 ETF 作为收益防御研究对象；收益防御不是从主线强度推导。
+- 入队顺序先核心宽基、再收益防御、再主线代表、最后二级主题代表；队列来源分别写为 `broad_index_representative`、`defensive_representative`、`mainline_representative` 和 `secondary_theme_representative`。
+- 非现金替代 ETF 每只只生成一条 `research` 完整深研任务。
+- 短融、日利、货币、现金类 ETF 默认不生成深度研究任务。
+- 本任务只做入队和状态汇总，不领取研究任务。
+
+## ETF 完整深研队列消化
+
+用途：启动一次后持续消化本地待研究队列，直到没有可领取任务。
+
+规则：
+
+- 只从本地 `research_queue` 领取 pending 任务。
+- 领取任务时把状态标记为 `RUNNING`。
+- `task_queue` 是唯一状态源。
+- 单条任务只研究一只 ETF、一个 `research` 任务类型。
+- 每条任务完成、失败或明确 `BLOCKED` 后，等待 10 分钟再领取下一条。
+- 必须循环领取并处理，直到 `python scripts/generate_single_etf_prompt.py --next --claim` 返回没有可领取任务。
+- 如果某条任务无法完成，必须进入 `FAILED` 或 `BLOCKED` 并记录原因，不得让 `RUNNING` 永久卡住，也不得因此停止后续队列消化。
+- `research` 最终报告必须由 `core/report.build_etf_report(...)` 或 `scripts/build_research_report.py` 生成。
+- 报告生成时应记录 `feature`、`valuation`、`signal`、`report` 四个 trace stage。
+- 领取脚本输出的 `run_id`、`task_id`、`source_type` 和 `depends_on_task_type` 必须保留在自动化汇报中。
+- 如果队列为空，验证 `/api/index` 和 `/api/latest` 可用，然后结束。
+
+## 数据原则
+
+- Tushare 是 A 股 ETF 结构化主源，使用本地 `.env`，不得输出 token。
+- ETF 重点接口：`fund_basic`、`fund_daily`、`fund_nav`、`fund_share`、`fund_portfolio`、`index_daily`。
+- `fund_share` 是份额变化的可用代理。
+- `fund_portfolio` 只代表已披露季报持仓，不是实时完整底仓。
+- 网络资料只作为补充证据，必须记录来源、日期和用途。
+- 不输出交易指令、现金金额或份额数量。
+
+## 完整深研流程
+
+1. 运行 `python scripts/ingest_index.py` 更新上游 ETF 队列。
+2. 循环领取下一条 `research` 队列任务。
+3. 对当前任务构建 `assembly_input`，包括 `product_profile`、`holdings_inputs`、`valuation_inputs`、`model_specific_inputs`、`liquidity_inputs`、`tracking_inputs`、`risk_signals`、`evidence`、`assumptions`、`data_gaps`。
+4. 运行 `python scripts/build_research_report.py --audit-db data/local/myinvestetf.sqlite <assembly_input>`。
+5. 运行 `python scripts/import_research_run.py <report_json>` 入库。
+6. 当前任务进入 `DONE`、`FAILED` 或 `BLOCKED` 后，如果仍有可领取任务，等待 10 分钟再回到第 2 步。
+7. 队列清空后运行 `python scripts/update_etf_prices.py --all-system` 刷新 `fund_daily` 日行情缓存，用于 ETF 详情页 2024-09-24 以来收盘价折线图。
+8. 验证 `/api/index`、`/api/latest` 和 ETF 详情页可用。

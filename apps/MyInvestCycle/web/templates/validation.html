@@ -1,0 +1,2393 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>验证归因</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260629-channels-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="validation" data-results-page="1">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Validation</p>
+          <h1>验证归因</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+          <a class="back-link" href="/">返回首页</a>
+        </div>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a href="/cycle-track">
+          <span>Outlook</span>
+          <strong>后市展望</strong>
+        </a>
+        <a href="/cycle-observation">
+          <span>History</span>
+          <strong>历史回顾</strong>
+        </a>
+        <a href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/v2-validation">
+          <span>V2</span>
+          <strong>配置验证</strong>
+        </a>
+        <a class="is-active" href="/validation">
+          <span>Validation</span>
+          <strong>验证归因</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="results-overview" id="validation-channel" aria-live="polite">
+        <div class="dashboard-section-heading">
+          <div>
+            <span>Validation</span>
+            <h2>验证归因</h2>
+          </div>
+          <p>用仓位风控回测、Regime 归因、结构事件和模型验证来判断系统是否可靠。</p>
+        </div>
+
+        <article class="chart-panel result-panel shadow-panel wide-analysis-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="按市场状态生成目标仓位：牛市偏进攻，震荡半仓，熊市低仓防守，过渡期降低交易；再用风险分数下调仓位，并滞后 1 个交易日应用到 510500.SH 日收益，和满仓持有 510500 对比收益、回撤与 Alpha。不做选股，不代表真实交易账户。">仓位风控回测</h2>
+            <span class="panel-kicker">R2 动态仓位 / 510500 基准</span>
+          </div>
+          <div class="wide-panel-layout">
+            <div class="wide-panel-metrics">
+              <div class="shadow-headline">
+                <div>
+                  <span>累计 Alpha</span>
+                  <strong id="shadowFinalAlpha">--</strong>
+                </div>
+                <div>
+                  <span>平均仓位</span>
+                  <strong id="shadowAverageExposure">--</strong>
+                </div>
+              </div>
+              <div class="metric-card-grid">
+                <div>
+                  <span>策略收益</span>
+                  <strong id="shadowTotalReturn">--</strong>
+                </div>
+                <div>
+                  <span>基准收益</span>
+                  <strong id="benchmarkTotalReturn">--</strong>
+                </div>
+                <div>
+                  <span>策略权益</span>
+                  <strong id="shadowFinalEquity">--</strong>
+                </div>
+                <div>
+                  <span>基准权益</span>
+                  <strong id="benchmarkFinalEquity">--</strong>
+                </div>
+                <div>
+                  <span>样本</span>
+                  <strong id="shadowSessions">--</strong>
+                </div>
+                <div>
+                  <span>基准</span>
+                  <strong id="shadowBenchmarkCode">--</strong>
+                </div>
+              </div>
+              <div class="result-row">
+                <span>最大回撤</span>
+                <strong id="shadowDrawdown">--</strong>
+              </div>
+              <p class="result-note" id="shadowConclusion">--</p>
+            </div>
+            <div class="chart-box shadow-equity-box" id="shadowEquityChart"></div>
+          </div>
+        </article>
+
+        <article class="chart-panel result-panel attribution-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把风控仓位策略相对基准的差异拆到牛市、熊市、震荡和过渡状态，判断收益来源和拖累来源。">Regime 归因</h2>
+            <span class="panel-kicker">S1.2</span>
+          </div>
+          <div class="attribution-headline">
+            <div>
+              <span>累计 Alpha</span>
+              <strong id="regimeAttributionTotalAlpha">--</strong>
+            </div>
+            <div>
+              <span>回撤减少</span>
+              <strong id="regimeAttributionDrawdownReduction">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>最大拖累</span>
+            <strong id="largestDragRegime">--</strong>
+          </div>
+          <div class="result-row">
+            <span>最大正贡献</span>
+            <strong id="largestPositiveRegime">--</strong>
+          </div>
+          <div class="attribution-regime-list" id="regimeAttributionList"></div>
+          <div class="alpha-source-list" id="alphaSourceList"></div>
+          <p class="result-note" id="regimeAttributionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="比较 Opportunity Score、Style Preference 和固定 50/50 Combined 三套排序，检查 Style 是否在原机会分之外提供独立增量信息；只做研究验证，不生成仓位或交易。">Style 增量信息检验</h2>
+            <span class="panel-kicker">V3.5.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>结论状态</span>
+              <strong id="styleIncrementalStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>20日增量收益</span>
+              <strong id="styleIncremental20Return">--</strong>
+            </div>
+            <div class="result-row">
+              <span>60日增量收益</span>
+              <strong id="styleIncremental60Return">--</strong>
+            </div>
+            <div class="result-row">
+              <span>20日增量 IC</span>
+              <strong id="styleIncremental20Ic">--</strong>
+            </div>
+            <div class="result-row">
+              <span>60日增量 IC</span>
+              <strong id="styleIncremental60Ic">--</strong>
+            </div>
+            <div class="result-row">
+              <span>20/60日命中率</span>
+              <strong id="styleIncrementalHitRate">--</strong>
+            </div>
+          </div>
+          <p class="result-note" id="styleIncrementalConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把固定 V4.1 Beta 风险预算规则在 2015 起历史状态中重放，检查牛市参与、熊市防守和高拥挤控制是否合理；只做验证，不调规则、不输出仓位、不生成交易。">风险预算历史验证</h2>
+            <span class="panel-kicker">V4.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>重放样本</span>
+              <strong id="policyValidationReplay">--</strong>
+            </div>
+            <div class="result-row">
+              <span>硬矛盾</span>
+              <strong id="policyValidationHardContradictions">--</strong>
+            </div>
+            <div class="result-row">
+              <span>软复核项</span>
+              <strong id="policyValidationReviewItems">--</strong>
+            </div>
+            <div class="result-row">
+              <span>完整上下文</span>
+              <strong id="policyValidationContextCoverage">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="policyValidationPosture"></div>
+          <div class="duration-list" id="policyValidationPeriods"></div>
+          <p class="result-note" id="policyValidationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V4.4 政策模式不变，用未来 60/120 交易日环境标签做事后审计，比较旧 structural_state、机会风险二维状态和 policy_mode 的解释力；不调阈值、不输出仓位或交易。">政策解释力审计</h2>
+            <span class="panel-kicker">V4.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>可评估样本</span>
+              <strong id="policyEffectivenessRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>矛盾率</span>
+              <strong id="policyEffectivenessContradictionRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>高风险事件率</span>
+              <strong id="policyEffectivenessRiskRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>主模式占比</span>
+              <strong id="policyEffectivenessTopModeShare">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="policyEffectivenessModels"></div>
+          <div class="duration-list" id="policyEffectivenessPeriods"></div>
+          <p class="result-note" id="policyEffectivenessConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V4.6 市场阶段规则不变，审计 phase 是否比旧 structural_state 更能区分未来风险，并列出阶段转移异常和重点错误案例；不调阈值、不输出仓位或交易。">阶段解释力复核</h2>
+            <span class="panel-kicker">V4.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="phaseEffectivenessRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>Phase 区分</span>
+              <strong id="phaseEffectivenessSpread">--</strong>
+            </div>
+            <div class="result-row">
+              <span>结构区分</span>
+              <strong id="phaseEffectivenessStructuralSpread">--</strong>
+            </div>
+            <div class="result-row">
+              <span>复核项</span>
+              <strong id="phaseEffectivenessReviewItems">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="phaseEffectivenessReviewList"></div>
+          <div class="duration-list" id="phaseEffectivenessPeriodCases"></div>
+          <p class="result-note" id="phaseEffectivenessConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把固定 V4.4 政策模式映射为 DEFENSIVE/LOW/BALANCED/HIGH/OFFENSIVE 定性暴露等级，历史重放检查高风险环境是否过于激进、强机会环境是否过度保守；只做模拟验证，不输出仓位百分比、ETF、权重或交易信号。">定性暴露等级模拟</h2>
+            <span class="panel-kicker">V5.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>当前等级</span>
+              <strong id="exposureSimulationCurrent">--</strong>
+            </div>
+            <div class="result-row">
+              <span>重放样本</span>
+              <strong id="exposureSimulationRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>矛盾率</span>
+              <strong id="exposureSimulationContradictionRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会错失率</span>
+              <strong id="exposureSimulationOpportunityMissRate">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="exposureSimulationDistribution"></div>
+          <div class="duration-list" id="exposureSimulationPeriods"></div>
+          <p class="result-note" id="exposureSimulationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.1 暴露等级不改规则，审计各等级后续风险/机会是否有序、BALANCED 是否过宽、HIGH/OFFENSIVE 为什么缺失；只做审计，不生成仓位或交易。">暴露等级有效性审计</h2>
+            <span class="panel-kicker">V5.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>主等级</span>
+              <strong id="exposureEffectivenessDominant">--</strong>
+            </div>
+            <div class="result-row">
+              <span>有序性</span>
+              <strong id="exposureEffectivenessOrdering">--</strong>
+            </div>
+            <div class="result-row">
+              <span>缺失等级</span>
+              <strong id="exposureEffectivenessMissing">--</strong>
+            </div>
+            <div class="result-row">
+              <span>复核项</span>
+              <strong id="exposureEffectivenessReviewItems">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="exposureEffectivenessLevels"></div>
+          <div class="duration-list" id="exposureEffectivenessReviewList"></div>
+          <p class="result-note" id="exposureEffectivenessConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="只分析 V5.1 中最大的 BALANCED 桶，拆解后续失败、机会错失和中性样本对应的机会状态、风险状态、市场阶段和证据旗标；不修改规则、不新增等级、不生成仓位或交易。">BALANCED 上下文拆解</h2>
+            <span class="panel-kicker">V5.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>BALANCED 占比</span>
+              <strong id="exposureContextShare">--</strong>
+            </div>
+            <div class="result-row">
+              <span>失败占比</span>
+              <strong id="exposureContextFailure">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会错失</span>
+              <strong id="exposureContextMissed">--</strong>
+            </div>
+            <div class="result-row">
+              <span>建议</span>
+              <strong id="exposureContextRecommendation">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="exposureContextSubgroups"></div>
+          <div class="duration-list" id="exposureContextCandidates"></div>
+          <p class="result-note" id="exposureContextConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="基于 V5.3 的 BALANCED 拆解结果，审计 BALANCED_RISK、BALANCED_OPPORTUNITY、BALANCED_NEUTRAL 研究候选标签的样本数、稳定性和置信度；不修改 mapper、不新增正式等级、不输出仓位或交易。">BALANCED 候选状态审计</h2>
+            <span class="panel-kicker">V5.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>质量状态</span>
+              <strong id="balancedContextStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>正式规则</span>
+              <strong id="balancedContextReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>候选数</span>
+              <strong id="balancedContextCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>复核项</span>
+              <strong id="balancedContextReviewItems">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="balancedContextCandidates"></div>
+          <p class="result-note" id="balancedContextConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.4 候选标签，归因 BALANCED_RISK 为什么失败、BALANCED_OPPORTUNITY 为什么被压制；只解释失败/机会错失来源，不修改规则、不新增状态、不生成仓位或交易。">BALANCED 候选归因</h2>
+            <span class="panel-kicker">V5.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="balancedFailureReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险样本</span>
+              <strong id="balancedFailureRiskRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会样本</span>
+              <strong id="balancedFailureOpportunityRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>复核项</span>
+              <strong id="balancedFailureReviewItems">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="balancedFailurePatterns"></div>
+          <p class="result-note" id="balancedFailureConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把每个历史定性暴露信号与当时可见的宏观、趋势、宽度、流动性、波动、行业扩散、主题持续、拥挤、价格延伸和风险分数关联；缺失保留 null，不用 0 替代，不做未来填充，不改变规则。">暴露数值上下文</h2>
+            <span class="panel-kicker">V5.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="exposureNumericRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>时间安全</span>
+              <strong id="exposureNumericTimeSafe">--</strong>
+            </div>
+            <div class="result-row">
+              <span>结构覆盖</span>
+              <strong id="exposureNumericStructureCoverage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>宏观历史</span>
+              <strong id="exposureNumericMacroCoverage">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="exposureNumericCoverage"></div>
+          <div class="duration-list" id="exposureNumericSamples"></div>
+          <p class="result-note" id="exposureNumericConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="按 Exposure Replay 的历史信号日期，读取当时已经 release/effective 的宏观指标，生成宏观分、置信度、信用、经济、外部压力和原始指标上下文；缺失保留 null，不用未来宏观数据。">宏观历史上下文</h2>
+            <span class="panel-kicker">V5.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="macroContextRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>宏观分覆盖</span>
+              <strong id="macroContextScoreCoverage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>时间安全</span>
+              <strong id="macroContextTimeSafe">--</strong>
+            </div>
+            <div class="result-row">
+              <span>估值字段</span>
+              <strong id="macroContextValuationCoverage">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="macroContextCoverage"></div>
+          <div class="duration-list" id="macroContextSamples"></div>
+          <p class="result-note" id="macroContextConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.4 的 BALANCED_RISK / BALANCED_OPPORTUNITY / BALANCED_NEUTRAL 研究标签，把 V5.6 数值上下文和 V5.7 宏观历史上下文接进来重新解释失败和机会错失；只做诊断，不改 mapper、不新增正式状态、不输出仓位或交易。">宏观增强 BALANCED 归因</h2>
+            <span class="panel-kicker">V5.8</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>BALANCED样本</span>
+              <strong id="macroEnhancedRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>宏观解释</span>
+              <strong id="macroEnhancedValue">--</strong>
+            </div>
+            <div class="result-row">
+              <span>时间安全</span>
+              <strong id="macroEnhancedTimeSafe">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="macroEnhancedReady">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="macroEnhancedCandidates"></div>
+          <div class="duration-list" id="macroEnhancedDrivers"></div>
+          <p class="result-note" id="macroEnhancedConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把 BALANCED 设计成 Recovery、Structural Opportunity、Risk、Neutral 四类研究候选状态，并检查样本、未来风险/机会率、稳定性和分离度；这不是正式 mapper，不输出仓位或交易。">BALANCED 状态模型设计审计</h2>
+            <span class="panel-kicker">V5.9</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>BALANCED样本</span>
+              <strong id="contextStateRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>质量状态</span>
+              <strong id="contextStateQuality">--</strong>
+            </div>
+            <div class="result-row">
+              <span>时间安全</span>
+              <strong id="contextStateTimeSafe">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="contextStateReady">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="contextStateList"></div>
+          <div class="duration-list" id="contextStateSeparation"></div>
+          <p class="result-note" id="contextStateConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="在 BALANCED 内构建连续风险梯度和机会梯度，用固定权重分桶验证未来失败率和机会率；这是研究评分，不是仓位、ETF 或交易信号。">BALANCED 风险/机会梯度审计</h2>
+            <span class="panel-kicker">V5.10</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>BALANCED样本</span>
+              <strong id="gradientRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险区分</span>
+              <strong id="gradientRiskSeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会区分</span>
+              <strong id="gradientOpportunitySeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="gradientReady">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="gradientRiskBuckets"></div>
+          <div class="duration-list" id="gradientOpportunityBuckets"></div>
+          <p class="result-note" id="gradientConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.10 风险梯度权重和 high/medium/low 阈值，按 2015-2017、2018、2020、2021、2022、2024-2026 分段复核高风险桶是否持续有效；只做稳健性审计，不改规则。">风险梯度稳健性审计</h2>
+            <span class="panel-kicker">V5.11</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>总体风险抬升</span>
+              <strong id="robustnessOverallLift">--</strong>
+            </div>
+            <div class="result-row">
+              <span>阶段一致性</span>
+              <strong id="robustnessConsistency">--</strong>
+            </div>
+            <div class="result-row">
+              <span>可评价阶段</span>
+              <strong id="robustnessEvaluated">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="robustnessReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="robustnessPeriods"></div>
+          <div class="alpha-source-list" id="robustnessBuckets"></div>
+          <p class="result-note" id="robustnessConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.10 风险分数和 V5.11 阈值，按机会状态、市场阶段、风险状态及组合条件拆分，解释风险梯度在哪些环境下更有效；只做条件解释，不形成仓位规则。">风险梯度条件有效性</h2>
+            <span class="panel-kicker">V5.12</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>正向条件</span>
+              <strong id="conditionPositive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>样本不足</span>
+              <strong id="conditionInsufficient">--</strong>
+            </div>
+            <div class="result-row">
+              <span>最强条件</span>
+              <strong id="conditionTop">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="conditionReady">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="conditionPositiveList"></div>
+          <div class="duration-list" id="conditionNegativeList"></div>
+          <p class="result-note" id="conditionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="只从 V5.12 已发现的正向条件中抽取少量候选，复核样本、阶段覆盖、稳定性和失败案例；候选不等于正式规则，不产生仓位或交易动作。">最小风险候选审计</h2>
+            <span class="panel-kicker">V5.13</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>候选数</span>
+              <strong id="candidateCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>主研究候选</span>
+              <strong id="candidatePrimary">--</strong>
+            </div>
+            <div class="result-row">
+              <span>可规则化</span>
+              <strong id="candidateReadyCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>规则变更</span>
+              <strong id="candidateReady">--</strong>
+            </div>
+          </div>
+          <div class="alpha-source-list" id="candidateRuleList"></div>
+          <p class="result-note" id="candidateConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.1 暴露模拟，不改变 exposure level，只把 V5 风险梯度和 V5.13 主候选作为诊断提示叠加，审计它们是否能改善风险解释。">暴露策略诊断验证</h2>
+            <span class="panel-kicker">V6.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="policyValidationRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险捕获</span>
+              <strong id="policyValidationCapture">--</strong>
+            </div>
+            <div class="result-row">
+              <span>误警率</span>
+              <strong id="policyValidationFalseWarning">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="policyValidationReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="policyValidationModels"></div>
+          <p class="result-note" id="policyValidationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把机会状态、市场阶段、风险状态和风险梯度组合成研究型 decision context 标签，审计这些标签是否能分离未来风险和机会；不输出仓位、权重或交易。">暴露决策上下文审计</h2>
+            <span class="panel-kicker">V6.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="decisionRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险分离</span>
+              <strong id="decisionRiskSeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会分离</span>
+              <strong id="decisionOpportunitySeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="decisionReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="decisionModeList"></div>
+          <p class="result-note" id="decisionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="生成 participation_score 与 protection_score 两个连续研究分数，审计高保护分是否对应未来高风险、高参与分是否对应未来机会；不输出仓位或交易。">连续暴露上下文评分</h2>
+            <span class="panel-kicker">V6.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="scoreRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保护分离</span>
+              <strong id="scoreProtectionSeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>参与分离</span>
+              <strong id="scoreParticipationSeparation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="scoreReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="scoreBucketList"></div>
+          <p class="result-note" id="scoreConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V6.3 保护分、V5.10 风险梯度和 V5.11 阈值，对比高保护分、高风险梯度、两者同时高时的未来高风险率、回撤事件率和矛盾率；只验证风险解释，不生成仓位或交易。">保护分稳健性验证</h2>
+            <span class="panel-kicker">V6.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="protectionValidationRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保护分风险抬升</span>
+              <strong id="protectionValidationLift">--</strong>
+            </div>
+            <div class="result-row">
+              <span>阶段一致性</span>
+              <strong id="protectionValidationConsistency">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="protectionValidationReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="protectionValidationModels"></div>
+          <div class="alpha-source-list" id="protectionValidationPhases"></div>
+          <p class="result-note" id="protectionValidationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V6.3 participation/protection 分桶生成二维环境象限：参与、保护参与、等待、回避；比较各象限未来风险、机会、回撤和矛盾率，并与 V5.1 暴露等级、V6.2 decision mode 对比。">风险-机会双轴验证</h2>
+            <span class="panel-kicker">V6.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="twoAxisRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险区分</span>
+              <strong id="twoAxisRiskSpread">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会区分</span>
+              <strong id="twoAxisOpportunitySpread">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="twoAxisReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="twoAxisQuadrants"></div>
+          <div class="alpha-source-list" id="twoAxisComparison"></div>
+          <p class="result-note" id="twoAxisConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V5.1 暴露等级、V5.10 风险梯度、V6.3 保护分和 V6.5 双轴上下文，对比每层的风险区分、机会区分、回撤区分、阶段一致性和保留建议；只做系统归因，不新增模型。">上下文信息层归因</h2>
+            <span class="panel-kicker">V6.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样本</span>
+              <strong id="contextAttributionRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险领先层</span>
+              <strong id="contextAttributionRiskLeader">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留层数</span>
+              <strong id="contextAttributionRetained">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略变更</span>
+              <strong id="contextAttributionReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="contextAttributionLayers"></div>
+          <p class="result-note" id="contextAttributionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="建立机会研究侧的资产池、研究代理、覆盖率和时间安全边界；这是研究底座，不生成评分、排名、仓位或交易信号。">机会研究基础层</h2>
+            <span class="panel-kicker">V7.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>ETF 资产池</span>
+              <strong id="opportunityFoundationAssets">--</strong>
+            </div>
+            <div class="result-row">
+              <span>研究代理</span>
+              <strong id="opportunityFoundationProxy">--</strong>
+            </div>
+            <div class="result-row">
+              <span>覆盖口径</span>
+              <strong id="opportunityFoundationCoverage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="opportunityFoundationBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="opportunityFoundationCategories"></div>
+          <div class="alpha-source-list" id="opportunityFoundationSamples"></div>
+          <p class="result-note" id="opportunityFoundationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="按统一安全日期输出动量、相对强弱、趋势、风险和结构字段；每个字段都保留来源、来源类型和日期，只做研究特征，不生成机会分、排序或仓位。">机会研究特征层</h2>
+            <span class="panel-kicker">V7.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>特征日期</span>
+              <strong id="opportunityFeaturesAsOf">--</strong>
+            </div>
+            <div class="result-row">
+              <span>资产 / 来源</span>
+              <strong id="opportunityFeaturesSources">--</strong>
+            </div>
+            <div class="result-row">
+              <span>字段组</span>
+              <strong id="opportunityFeaturesGroups">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="opportunityFeaturesBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="opportunityFeaturesCompleteness"></div>
+          <div class="alpha-source-list" id="opportunityFeaturesSamples"></div>
+          <p class="result-note" id="opportunityFeaturesConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V7.2 特征，审计 5/20/60 日 IC，并把 research proxy 与真实 ETF 可交易迁移分开；这是有效性审计，不生成评分、排名或仓位。">机会特征有效性审计</h2>
+            <span class="panel-kicker">V7.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>特征 / Horizon</span>
+              <strong id="opportunityValidationScope">--</strong>
+            </div>
+            <div class="result-row">
+              <span>上下文日期</span>
+              <strong id="opportunityValidationDates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>Proxy 结果</span>
+              <strong id="opportunityValidationProxy">--</strong>
+            </div>
+            <div class="result-row">
+              <span>ETF 结果</span>
+              <strong id="opportunityValidationEtf">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="opportunityValidationStatus"></div>
+          <div class="alpha-source-list" id="opportunityValidationSamples"></div>
+          <p class="result-note" id="opportunityValidationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 V7.3 验证结果，归因哪些特征暂时保留研究、观察或暂弃；这些标签不是评分、权重、排名、Top N 或交易信号。">机会特征归因与稳定性</h2>
+            <span class="panel-kicker">V7.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>归因条数</span>
+              <strong id="opportunityAttributionRows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留结论</span>
+              <strong id="opportunityAttributionRetention">--</strong>
+            </div>
+            <div class="result-row">
+              <span>环境一致性</span>
+              <strong id="opportunityAttributionRegime">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="opportunityAttributionBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="opportunityAttributionCounts"></div>
+          <div class="alpha-source-list" id="opportunityAttributionSamples"></div>
+          <p class="result-note" id="opportunityAttributionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="冻结 V7 机会研究层：保留 V7.1-V7.4 的资产、特征、验证、归因框架，同时明确拒绝机会分、排名、Top N、仓位、ETF 权重和交易输出。">机会研究层冻结</h2>
+            <span class="panel-kicker">V7.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>冻结状态</span>
+              <strong id="opportunityArchitectureStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留层</span>
+              <strong id="opportunityArchitectureLayers">--</strong>
+            </div>
+            <div class="result-row">
+              <span>拒绝输出</span>
+              <strong id="opportunityArchitectureRejected">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="opportunityArchitectureBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="opportunityArchitectureLayerList"></div>
+          <div class="alpha-source-list" id="opportunityArchitectureRejectedList"></div>
+          <p class="result-note" id="opportunityArchitectureConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把冻结的 V6 风险上下文和 V7 机会研究归因整合成研究语境，只回答当前应如何解释风险与机会信息；不输出资产、排名、Top N、仓位、ETF 权重或交易信号。">研究决策整合架构</h2>
+            <span class="panel-kicker">V8.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>研究语境</span>
+              <strong id="researchDecisionContext">--</strong>
+            </div>
+            <div class="result-row">
+              <span>研究姿态</span>
+              <strong id="researchDecisionPosture">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会关注</span>
+              <strong id="researchDecisionOpportunity">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="researchDecisionBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="researchDecisionEvidence"></div>
+          <div class="alpha-source-list" id="researchDecisionFeatureGroups"></div>
+          <p class="result-note" id="researchDecisionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="固定 2015、2018、2020、2021、2022、2024-2026 六个历史场景，审计 V8.1 研究语境的解释一致性、上下文切换、矛盾样本和覆盖缺口；不看收益、不做策略。">历史情景解释审计</h2>
+            <span class="panel-kicker">V8.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>场景覆盖</span>
+              <strong id="scenarioAuditCoverage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>一致性</span>
+              <strong id="scenarioAuditConsistency">--</strong>
+            </div>
+            <div class="result-row">
+              <span>切换稳定</span>
+              <strong id="scenarioAuditTransitions">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="scenarioAuditBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="scenarioAuditRows"></div>
+          <p class="result-note" id="scenarioAuditConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="解释 V8.1 研究语境在重点历史场景中为什么失败，例如 2015 快速切换、2018 熊市参与语境偏多、2024-2026 结构行情机会解释不足；只做归因，不改规则。">研究语境矛盾归因</h2>
+            <span class="panel-kicker">V8.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>重点场景</span>
+              <strong id="contradictionFocusCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>归因条数</span>
+              <strong id="contradictionAttributionCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>主要类型</span>
+              <strong id="contradictionTypeSummary">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="contradictionBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="contradictionRows"></div>
+          <p class="result-note" id="contradictionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="冻结 V8 研究解释架构：保留 V8.1 研究语境、V8.2 历史情景解释审计、V8.3 矛盾归因，同时明确拒绝评分、排名、资产选择、配置、ETF 权重和交易。">研究决策架构冻结</h2>
+            <span class="panel-kicker">V8.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>冻结状态</span>
+              <strong id="v8ArchitectureStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留层</span>
+              <strong id="v8ArchitectureLayers">--</strong>
+            </div>
+            <div class="result-row">
+              <span>拒绝输出</span>
+              <strong id="v8ArchitectureRejected">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="v8ArchitectureBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v8ArchitectureLayerList"></div>
+          <div class="alpha-source-list" id="v8ArchitectureRejectedList"></div>
+          <p class="result-note" id="v8ArchitectureConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义 V9.1 配置研究层的未来架构边界：只允许读取冻结的 V6 风险上下文、V7 机会研究状态和 V8 研究解释语境；当前不输出资产选择、ETF 映射、组合权重、回测优化或交易信号。">配置研究架构基础</h2>
+            <span class="panel-kicker">V9.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>研究状态</span>
+              <strong id="allocationResearchReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>环境语境</span>
+              <strong id="allocationResearchContext">--</strong>
+            </div>
+            <div class="result-row">
+              <span>禁止输出</span>
+              <strong id="allocationResearchForbidden">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationResearchBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationResearchInputs"></div>
+          <div class="duration-list" id="allocationResearchEvidence"></div>
+          <p class="result-note" id="allocationResearchConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义 V9.2 未来配置研究假设：所有假设都保持未验证，仅说明后续应验证什么；不输出资产、ETF、权重、回测结果、参数优化、买卖或调仓信号。">配置研究假设框架</h2>
+            <span class="panel-kicker">V9.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>框架状态</span>
+              <strong id="allocationHypothesisStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>假设数量</span>
+              <strong id="allocationHypothesisCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>验证要求</span>
+              <strong id="allocationHypothesisValidation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationHypothesisBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationHypothesisRows"></div>
+          <p class="result-note" id="allocationHypothesisConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义 V9.3 配置研究验证计划：只说明如何验证 V9.2 假设，包括样本外、回撤、矛盾、稳定性和防过拟合要求；不执行验证、不输出回测结果、不做优化或交易。">配置研究验证计划</h2>
+            <span class="panel-kicker">V9.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>执行状态</span>
+              <strong id="allocationValidationStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>计划数量</span>
+              <strong id="allocationValidationCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>证据要求</span>
+              <strong id="allocationValidationEvidence">--</strong>
+            </div>
+            <div class="result-row">
+              <span>防过拟合</span>
+              <strong id="allocationValidationAntiOverfit">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationValidationBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationValidationRows"></div>
+          <p class="result-note" id="allocationValidationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义 V9.4 配置研究实验模板：只给出预声明比较方法、评价标准和失败标准；不运行实验、不输出验证或回测结果、不生成资产、ETF、权重、优化或交易。">配置研究实验模板</h2>
+            <span class="panel-kicker">V9.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>执行状态</span>
+              <strong id="allocationExperimentStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>模板数量</span>
+              <strong id="allocationExperimentCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>评价标准</span>
+              <strong id="allocationExperimentEvaluation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationExperimentBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationExperimentRows"></div>
+          <p class="result-note" id="allocationExperimentConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V9.5 配置研究实验 Phase 0：只检查预声明模板的研究纪律和设计完整性；不读取市场数据寻找最佳规则、不输出回测结果、不生成资产、ETF、权重、优化或交易。">配置研究实验 Phase 0</h2>
+            <span class="panel-kicker">V9.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>执行状态</span>
+              <strong id="allocationExperimentResultStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>执行数量</span>
+              <strong id="allocationExperimentResultExecuted">--</strong>
+            </div>
+            <div class="result-row">
+              <span>设计通过</span>
+              <strong id="allocationExperimentResultDesignPass">--</strong>
+            </div>
+            <div class="result-row">
+              <span>市场验证</span>
+              <strong id="allocationExperimentResultMarket">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationExperimentResultBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationExperimentResultRows"></div>
+          <p class="result-note" id="allocationExperimentResultConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V9.6 配置研究实验 Phase 1：只用冻结 V6/V7/V8/V9.5 产物生成 supported / inconclusive / unsupported 研究验证状态；不晋级候选、不输出资产、ETF、权重、优化或交易。">配置研究实验 Phase 1</h2>
+            <span class="panel-kicker">V9.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>验证状态</span>
+              <strong id="allocationPhase1Status">--</strong>
+            </div>
+            <div class="result-row">
+              <span>支持</span>
+              <strong id="allocationPhase1Supported">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不确定</span>
+              <strong id="allocationPhase1Inconclusive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输入哈希</span>
+              <strong id="allocationPhase1Hashes">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationPhase1Boundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationPhase1Rows"></div>
+          <p class="result-note" id="allocationPhase1Conclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V9.7 研究阶段门禁审计：固定 V9.6 验证结果、V9.3 验证计划和 V9.4 实验模板，只判断每个假设继续研究、冻结或暂拒；不转策略、不配置、不选资产、不映射 ETF、不生成权重或交易。">研究阶段门禁审计</h2>
+            <span class="panel-kicker">V9.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>门禁状态</span>
+              <strong id="researchGateStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>继续研究</span>
+              <strong id="researchGateContinue">--</strong>
+            </div>
+            <div class="result-row">
+              <span>冻结</span>
+              <strong id="researchGateFreeze">--</strong>
+            </div>
+            <div class="result-row">
+              <span>暂拒</span>
+              <strong id="researchGateReject">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="researchGateBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="researchGateRows"></div>
+          <p class="result-note" id="researchGateConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V9.8 研究候选深度验证：只对 V9.7 继续研究的 H2/H4 做更严格的场景一致性、风险轴稳定性和矛盾门禁证据审计；不策略化、不配置、不优化、不交易。">研究候选深度验证</h2>
+            <span class="panel-kicker">V9.8</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>验证状态</span>
+              <strong id="researchDeepStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>支持</span>
+              <strong id="researchDeepSupported">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不确定</span>
+              <strong id="researchDeepInconclusive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不支持</span>
+              <strong id="researchDeepUnsupported">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="researchDeepBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="researchDeepRows"></div>
+          <p class="result-note" id="researchDeepConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V9.9 配置研究证据冻结：固定 V9.1-V9.8 的研究证据状态，保留 H2/H4 作为研究方向，暂停 H1/H3，并明确不再增加状态层、假设层或解释层；不策略化、不配置、不优化、不交易。">配置研究证据冻结</h2>
+            <span class="panel-kicker">V9.9</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>研究状态</span>
+              <strong id="allocationEvidenceState">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留方向</span>
+              <strong id="allocationEvidenceRetained">--</strong>
+            </div>
+            <div class="result-row">
+              <span>暂停方向</span>
+              <strong id="allocationEvidencePaused">--</strong>
+            </div>
+            <div class="result-row">
+              <span>配置就绪</span>
+              <strong id="allocationEvidenceReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationEvidenceBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationEvidenceRows"></div>
+          <p class="result-note" id="allocationEvidenceConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V10.1 配置研究执行框架：只基于 V9.9 冻结证据和冻结 V6/V7/V8 产物生成 H2/H4 可复现实验运行记录、run_id 与 input_hash；不选资产、不映射 ETF、不生成权重、不优化、不交易。">配置研究执行框架</h2>
+            <span class="panel-kicker">V10.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>执行状态</span>
+              <strong id="allocationExecutionStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>运行记录</span>
+              <strong id="allocationExecutionRuns">--</strong>
+            </div>
+            <div class="result-row">
+              <span>支持</span>
+              <strong id="allocationExecutionSupported">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不确定</span>
+              <strong id="allocationExecutionInconclusive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationExecutionBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationExecutionRows"></div>
+          <p class="result-note" id="allocationExecutionConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V10.2 配置研究结果审查：只审查 V10.1 的 H2/H4 执行结果，并把 H2 保持为继续研究、H4 保留为研究流程门禁；不策略化、不配置、不优化、不交易。">配置研究结果审查</h2>
+            <span class="panel-kicker">V10.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>审查状态</span>
+              <strong id="allocationReviewStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>审查假设</span>
+              <strong id="allocationReviewCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>继续研究</span>
+              <strong id="allocationReviewContinue">--</strong>
+            </div>
+            <div class="result-row">
+              <span>保留研究</span>
+              <strong id="allocationReviewRetain">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationReviewBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationReviewRows"></div>
+          <p class="result-note" id="allocationReviewConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V10.3 配置研究最终边界决策：固定 V10.2 结果审查和 V9.9 证据冻结，H2 只允许继续外部验证，H4 仅保留为研究治理，H1/H3 冻结；不策略化、不配置、不优化、不交易。">配置研究最终边界</h2>
+            <span class="panel-kicker">V10.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>阶段状态</span>
+              <strong id="allocationFinalStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>方向数量</span>
+              <strong id="allocationFinalDirections">--</strong>
+            </div>
+            <div class="result-row">
+              <span>外部验证</span>
+              <strong id="allocationFinalExternal">--</strong>
+            </div>
+            <div class="result-row">
+              <span>治理保留</span>
+              <strong id="allocationFinalGovernance">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="allocationFinalBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="allocationFinalRows"></div>
+          <p class="result-note" id="allocationFinalConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义 V11.1 H2 外部验证协议：只规定预注册验证窗口、固定验证方法、失败标准和停止条件；不运行验证、不选资产、不映射 ETF、不生成权重、不配置、不优化、不交易。">外部验证协议</h2>
+            <span class="panel-kicker">V11.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>协议状态</span>
+              <strong id="externalProtocolStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>目标假设</span>
+              <strong id="externalProtocolTarget">--</strong>
+            </div>
+            <div class="result-row">
+              <span>验证窗口</span>
+              <strong id="externalProtocolWindows">--</strong>
+            </div>
+            <div class="result-row">
+              <span>排除方向</span>
+              <strong id="externalProtocolExcluded">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="externalProtocolBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="externalProtocolRows"></div>
+          <div class="duration-list" id="externalProtocolStops"></div>
+          <p class="result-note" id="externalProtocolConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="执行 V11.2 H2 外部验证框架：按 V11.1 预注册窗口读取冻结风险证据，只输出 passed / failed / inconclusive 研究状态；不生成资产、ETF、权重、配置、优化或交易。">H2 外部验证执行</h2>
+            <span class="panel-kicker">V11.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>整体状态</span>
+              <strong id="h2ExternalStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>通过窗口</span>
+              <strong id="h2ExternalPassed">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不确定窗口</span>
+              <strong id="h2ExternalInconclusive">--</strong>
+            </div>
+            <div class="result-row">
+              <span>失败窗口</span>
+              <strong id="h2ExternalFailed">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="h2ExternalBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="h2ExternalRows"></div>
+          <p class="result-note" id="h2ExternalConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="冻结 V11.3 H2 外部验证最终解释：风险证据可见，但跨周期稳定不足、结构机会冲突未解决，因此只能继续观察；不修改 H2、不调阈值、不加特征、不配置、不交易。">H2 外部验证结果冻结</h2>
+            <span class="panel-kicker">V11.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>冻结状态</span>
+              <strong id="h2FreezeStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>H2 状态</span>
+              <strong id="h2FreezeH2Status">--</strong>
+            </div>
+            <div class="result-row">
+              <span>研究决策</span>
+              <strong id="h2FreezeDecision">--</strong>
+            </div>
+            <div class="result-row">
+              <span>支持证据</span>
+              <strong id="h2FreezeSupported">--</strong>
+            </div>
+            <div class="result-row">
+              <span>输出边界</span>
+              <strong id="h2FreezeBoundary">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="h2FreezeRows"></div>
+          <p class="result-note" id="h2FreezeConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="冻结 V11.4 V6-V11 研究阶段最终架构：风险诊断仅观察用，机会预测、配置 Alpha、资产选择、组合构建和交易均未就绪；不新增研究层、不生成配置或交易。">研究阶段最终冻结</h2>
+            <span class="panel-kicker">V11.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>研究阶段</span>
+              <strong id="phaseClosureStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>风险研究</span>
+              <strong id="phaseClosureRisk">--</strong>
+            </div>
+            <div class="result-row">
+              <span>机会研究</span>
+              <strong id="phaseClosureOpportunity">--</strong>
+            </div>
+            <div class="result-row">
+              <span>配置状态</span>
+              <strong id="phaseClosureAllocation">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易状态</span>
+              <strong id="phaseClosureTrading">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="phaseClosureRows"></div>
+          <p class="result-note" id="phaseClosureConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义冻结研究结果进入实现层之前的最后隔离边界：风险诊断和研究治理只能作为只读观察候选；机会预测、配置 Alpha、资产选择、组合构建和执行仍隔离，不输出策略、权重、配置或交易。">研究到实现隔离边界</h2>
+            <span class="panel-kicker">V12.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>边界状态</span>
+              <strong id="implementationBoundaryStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现阶段</span>
+              <strong id="implementationBoundaryPhase">--</strong>
+            </div>
+            <div class="result-row">
+              <span>观察候选</span>
+              <strong id="implementationBoundaryCandidates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>隔离/禁用</span>
+              <strong id="implementationBoundaryBlocked">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现门禁</span>
+              <strong id="implementationBoundaryGate">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="implementationBoundaryRows"></div>
+          <p class="result-note" id="implementationBoundaryConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来允许进入实现阶段前必须满足的证据标准：样本外验证、成本换手容量、影子观察、人工审核和停止条件；当前不评价证据、不生成策略、不配置、不交易。">实现就绪证据标准</h2>
+            <span class="panel-kicker">V12.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>标准状态</span>
+              <strong id="readinessSpecStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="readinessSpecReadiness">--</strong>
+            </div>
+            <div class="result-row">
+              <span>组件标准</span>
+              <strong id="readinessSpecComponents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>全局门槛</span>
+              <strong id="readinessSpecGates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现门禁</span>
+              <strong id="readinessSpecGateResult">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="readinessSpecRows"></div>
+          <p class="result-note" id="readinessSpecConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来 evidence package 的审计框架：检查数据谱系、hash、样本外验证、成本容量、影子观察、人工审核和越界输出；当前没有提交证据包，所有组件继续 blocked。">实现证据审计框架</h2>
+            <span class="panel-kicker">V12.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>框架状态</span>
+              <strong id="readinessAuditStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>证据包</span>
+              <strong id="readinessAuditPackage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>组件审计</span>
+              <strong id="readinessAuditComponents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>Ready 组件</span>
+              <strong id="readinessAuditReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现门禁</span>
+              <strong id="readinessAuditGate">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="readinessAuditRows"></div>
+          <p class="result-note" id="readinessAuditConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来研究组件提交实现资格证据包的标准格式：metadata、证据项、数据谱系、验证结果、成本容量、影子观察、人工审核、边界扫描和输入 hash；当前不提交证据包，不晋级组件。">证据包提交协议</h2>
+            <span class="panel-kicker">V13.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>协议状态</span>
+              <strong id="submissionProtocolStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>提交状态</span>
+              <strong id="submissionProtocolSubmission">--</strong>
+            </div>
+            <div class="result-row">
+              <span>组件协议</span>
+              <strong id="submissionProtocolContracts">--</strong>
+            </div>
+            <div class="result-row">
+              <span>顶层字段</span>
+              <strong id="submissionProtocolFields">--</strong>
+            </div>
+            <div class="result-row">
+              <span>当前证据包</span>
+              <strong id="submissionProtocolPackage">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="submissionProtocolRows"></div>
+          <p class="result-note" id="submissionProtocolConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来证据包自动校验引擎：检查必填字段、组件合法性、hash、时间戳、数据谱系、人工审核、禁用输出和市场代码模式；当前不接收真实证据包。">证据包校验引擎</h2>
+            <span class="panel-kicker">V13.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>引擎状态</span>
+              <strong id="packageValidatorStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>当前证据包</span>
+              <strong id="packageValidatorPackage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>组件模板</span>
+              <strong id="packageValidatorTemplates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="packageValidatorReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>支持检查</span>
+              <strong id="packageValidatorChecks">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="packageValidatorRows"></div>
+          <p class="result-note" id="packageValidatorConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="用模拟不合格证据包验证校验引擎能拒绝缺字段和越界输出。该样例不包含真实市场代码、真实权重、真实收益或交易指令。">不合格证据包拒绝测试</h2>
+            <span class="panel-kicker">V13.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>样例状态</span>
+              <strong id="invalidExampleStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>包状态</span>
+              <strong id="invalidExamplePackage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>校验决策</span>
+              <strong id="invalidExampleDecision">--</strong>
+            </div>
+            <div class="result-row">
+              <span>违例数</span>
+              <strong id="invalidExampleViolations">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="invalidExampleReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="invalidExampleRows"></div>
+          <p class="result-note" id="invalidExampleConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="冻结 V12-V13 实现准入治理体系：边界、证据标准、审计框架、提交协议、校验引擎和拒绝测试都已固化；当前没有真实候选组件或实现输出。">实现准入治理冻结</h2>
+            <span class="panel-kicker">V13.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>冻结状态</span>
+              <strong id="governanceFreezeStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>冻结阶段</span>
+              <strong id="governanceFreezeStages">--</strong>
+            </div>
+            <div class="result-row">
+              <span>候选状态</span>
+              <strong id="governanceFreezeCandidate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="governanceFreezeReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>项目状态</span>
+              <strong id="governanceFreezeProject">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="governanceFreezeRows"></div>
+          <p class="result-note" id="governanceFreezeConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="提交 risk_diagnostic_layer 的第一份真实研究证据包：只验证证据格式、数据 lineage、边界和阻断原因；当前仍不允许策略、资产、ETF、权重、配置或交易。">风险诊断层证据包</h2>
+            <span class="panel-kicker">V14.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>证据状态</span>
+              <strong id="riskEvidenceStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>包状态</span>
+              <strong id="riskEvidencePackage">--</strong>
+            </div>
+            <div class="result-row">
+              <span>校验结果</span>
+              <strong id="riskEvidenceValidator">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="riskEvidenceReady">--</strong>
+            </div>
+            <div class="result-row">
+              <span>阻断原因</span>
+              <strong id="riskEvidenceBlockers">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskEvidenceRows"></div>
+          <p class="result-note" id="riskEvidenceConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义风险诊断层的无交易影子观察日志：未来只记录预警事件、上下文快照和后验结果，不触发自动风控、减仓、仓位调整或交易。">风险诊断影子观察框架</h2>
+            <span class="panel-kicker">V14.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>框架状态</span>
+              <strong id="riskShadowStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>影子状态</span>
+              <strong id="riskShadowPlan">--</strong>
+            </div>
+            <div class="result-row">
+              <span>事件数量</span>
+              <strong id="riskShadowEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowTrade">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实现就绪</span>
+              <strong id="riskShadowReady">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowRows"></div>
+          <p class="result-note" id="riskShadowConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="初始化风险诊断层的 active 空观察日志：当前事件数为 0，只允许未来手动追加无交易观察，不自动触发 warning，不调整 exposure 或仓位。">风险诊断影子观察日志</h2>
+            <span class="panel-kicker">V14.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>观察状态</span>
+              <strong id="riskShadowLogStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>日志状态</span>
+              <strong id="riskShadowLogMode">--</strong>
+            </div>
+            <div class="result-row">
+              <span>事件数量</span>
+              <strong id="riskShadowLogEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>自动触发</span>
+              <strong id="riskShadowLogAuto">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowLogTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowLogRows"></div>
+          <p class="result-note" id="riskShadowLogConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来影子观察事件的人工复核框架：检查事件完整性、source lineage、无交易合规、后验结果、误报和漏报；当前没有事件可复核。">风险诊断影子事件复核</h2>
+            <span class="panel-kicker">V14.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>复核框架</span>
+              <strong id="riskShadowReviewFramework">--</strong>
+            </div>
+            <div class="result-row">
+              <span>复核状态</span>
+              <strong id="riskShadowReviewStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>事件数量</span>
+              <strong id="riskShadowReviewEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已复核</span>
+              <strong id="riskShadowReviewCount">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowReviewTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowReviewRows"></div>
+          <p class="result-note" id="riskShadowReviewConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来真实 shadow event 的人工录入入口：必须由人工事件文件提交，带 source hash、去重、append-only 和无交易校验；默认不会自动生成事件。">风险诊断人工事件录入</h2>
+            <span class="panel-kicker">V14.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>录入能力</span>
+              <strong id="riskShadowCaptureStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>来源事件</span>
+              <strong id="riskShadowCaptureSourceEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>本次提交</span>
+              <strong id="riskShadowCaptureSubmitted">--</strong>
+            </div>
+            <div class="result-row">
+              <span>去重校验</span>
+              <strong id="riskShadowCaptureDedupe">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowCaptureTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowCaptureRows"></div>
+          <p class="result-note" id="riskShadowCaptureConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义未来人工 shadow event 的质量审计：检查字段完整性、source hash、去重、时间一致性、后验复核字段和无交易边界；当前没有事件可审计。">风险诊断事件质量审计</h2>
+            <span class="panel-kicker">V14.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>审计状态</span>
+              <strong id="riskShadowQualityStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>事件数量</span>
+              <strong id="riskShadowQualityEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已检查</span>
+              <strong id="riskShadowQualityChecked">--</strong>
+            </div>
+            <div class="result-row">
+              <span>自动决策</span>
+              <strong id="riskShadowQualityAuto">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowQualityTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowQualityRows"></div>
+          <p class="result-note" id="riskShadowQualityConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="定义首个人工 shadow event 的完整流程：人工 JSON、结构校验、source hash、去重、无交易校验、质量审计队列和后续 outcome review；不会自动扫描市场或生成事件。">风险诊断首个事件流程</h2>
+            <span class="panel-kicker">V14.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>流程状态</span>
+              <strong id="riskShadowWorkflowStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>当前事件</span>
+              <strong id="riskShadowWorkflowEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>队列事件</span>
+              <strong id="riskShadowWorkflowQueue">--</strong>
+            </div>
+            <div class="result-row">
+              <span>自动生成</span>
+              <strong id="riskShadowWorkflowAuto">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowWorkflowTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowWorkflowRows"></div>
+          <p class="result-note" id="riskShadowWorkflowConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="提供首个人工 shadow event 的输入模板、JSON schema 和只校验不提交的 CLI；当前没有事件文件输入，也不会写入观察日志。">风险诊断事件输入包</h2>
+            <span class="panel-kicker">V14.8</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>模板状态</span>
+              <strong id="riskShadowInputStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>是否提交</span>
+              <strong id="riskShadowInputSubmitted">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已校验</span>
+              <strong id="riskShadowInputValidated">--</strong>
+            </div>
+            <div class="result-row">
+              <span>只校验</span>
+              <strong id="riskShadowInputCli">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowInputTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowInputRows"></div>
+          <p class="result-note" id="riskShadowInputConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="汇总 shadow evidence 积累状态：事件数、待复核、已复核、误报、漏报和质量队列；只展示，不创建事件、不扫描市场、不判断风险。">风险诊断影子证据积累看板</h2>
+            <span class="panel-kicker">V14.9</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>当前事件</span>
+              <strong id="riskShadowEvidenceEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>待复核</span>
+              <strong id="riskShadowEvidencePending">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已复核</span>
+              <strong id="riskShadowEvidenceReviewed">--</strong>
+            </div>
+            <div class="result-row">
+              <span>质量队列</span>
+              <strong id="riskShadowEvidenceQueue">--</strong>
+            </div>
+            <div class="result-row">
+              <span>交易启用</span>
+              <strong id="riskShadowEvidenceTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="riskShadowEvidenceRows"></div>
+          <p class="result-note" id="riskShadowEvidenceConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.0 主线方向重置：V12-V14 保留为治理、证据和影子观察基础设施，不代表主 alpha 策略有效；V15+ 回到收益第一、最大回撤第二的回测重构。">V15 主线收益策略重构</h2>
+            <span class="panel-kicker">V15.0</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>阶段</span>
+              <strong id="v15RebasePhase">--</strong>
+            </div>
+            <div class="result-row">
+              <span>主线方向</span>
+              <strong id="v15RebaseDirection">--</strong>
+            </div>
+            <div class="result-row">
+              <span>第一目标</span>
+              <strong id="v15RebasePrimary">--</strong>
+            </div>
+            <div class="result-row">
+              <span>第二目标</span>
+              <strong id="v15RebaseSecondary">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实盘交易</span>
+              <strong id="v15RebaseTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15RebaseRows"></div>
+          <p class="result-note" id="v15RebaseConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.1 只定义未来收益导向回测所需数据底座：宽基、行业、宏观、回撤、结构牛字段和时间安全要求；不拉全量数据、不跑策略、不生成仓位或交易信号。">V15.1 回测数据集构建</h2>
+            <span class="panel-kicker">V15.1</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>状态</span>
+              <strong id="v15DatasetStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>数据组</span>
+              <strong id="v15DatasetGroups">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不跑策略</span>
+              <strong id="v15DatasetNoStrategy">--</strong>
+            </div>
+            <div class="result-row">
+              <span>不出仓位</span>
+              <strong id="v15DatasetNoPosition">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实盘交易</span>
+              <strong id="v15DatasetTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15DatasetRows"></div>
+          <p class="result-note" id="v15DatasetConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.2 只读本地缓存并生成回测数据覆盖率报告：记录 source/cache hash、缺失字段和时间安全检查；仍不运行策略、不生成仓位或交易信号。">V15.2 回测数据落地状态</h2>
+            <span class="panel-kicker">V15.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>状态</span>
+              <strong id="v15MaterializationStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>数据组</span>
+              <strong id="v15MaterializationGroups">--</strong>
+            </div>
+            <div class="result-row">
+              <span>可用源</span>
+              <strong id="v15MaterializationAvailable">--</strong>
+            </div>
+            <div class="result-row">
+              <span>缺失源</span>
+              <strong id="v15MaterializationMissing">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实盘交易</span>
+              <strong id="v15MaterializationTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15MaterializationRows"></div>
+          <p class="result-note" id="v15MaterializationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.3 用沪深300价格指数生成回撤信号，用沪深300全收益指数计算策略与基准收益，回测从2016年开始并按单边仓位变化扣15bp；只做研究评价，不生成交易信号。">V15.3 宏观回撤基准回测</h2>
+            <div class="panel-actions">
+              <span class="panel-kicker">V15.3</span>
+              <a class="panel-link" href="/v15-formal-evaluation">正式评价</a>
+            </div>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>状态</span>
+              <strong id="v15MacroBacktestStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>年化收益</span>
+              <strong id="v15MacroBacktestCagr">--</strong>
+            </div>
+            <div class="result-row">
+              <span>年化 Alpha</span>
+              <strong id="v15MacroBacktestAlpha">--</strong>
+            </div>
+            <div class="result-row">
+              <span>最大回撤</span>
+              <strong id="v15MacroBacktestDrawdown">--</strong>
+            </div>
+            <div class="result-row">
+              <span>实盘交易</span>
+              <strong id="v15MacroBacktestTrade">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15MacroBacktestRows"></div>
+          <p class="result-note" id="v15MacroBacktestConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.4 检查 V15.3 是否只是参数偶然命中：测试 9 组邻近阈值/仓位强度、0/5/10/15bp 成本，并以15bp作为正式口径完成滚动样本外验证。历史 phase 的严格发布时间链路尚未独立证实。">V15.4 参数稳健性与样本外验证</h2>
+            <span class="panel-kicker">V15.4</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>状态</span>
+              <strong id="v15MacroRobustnessStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>默认参数排名</span>
+              <strong id="v15MacroRobustnessRank">--</strong>
+            </div>
+            <div class="result-row">
+              <span>样本外年化</span>
+              <strong id="v15MacroRobustnessOosCagr">--</strong>
+            </div>
+            <div class="result-row">
+              <span>样本外回撤</span>
+              <strong id="v15MacroRobustnessOosDrawdown">--</strong>
+            </div>
+            <div class="result-row">
+              <span>策略推进</span>
+              <strong id="v15MacroRobustnessPromotion">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15MacroRobustnessRows"></div>
+          <p class="result-note" id="v15MacroRobustnessConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.5 核对历史阶段标签是否保留当时可见的发布日期、生效日期、抓取时间、数据版本和文件哈希。缺一项就只输出缺口报告，绝不把事后重建标签标成严格时点数据。">V15.5 时点证据与高位风险覆盖层</h2>
+            <span class="panel-kicker">V15.5</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>时点审计</span>
+              <strong id="v15PointInTimeStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已验证日期</span>
+              <strong id="v15PointInTimeVerifiedDates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>缺口类别</span>
+              <strong id="v15PointInTimeGaps">--</strong>
+            </div>
+            <div class="result-row">
+              <span>覆盖层特征</span>
+              <strong id="v15LateCycleFeatures">--</strong>
+            </div>
+            <div class="result-row">
+              <span>允许回测</span>
+              <strong id="v15LateCycleBacktest">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15PointInTimeRows"></div>
+          <div class="alpha-source-list" id="v15LateCycleFeatureRows"></div>
+          <p class="result-note" id="v15PointInTimeConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="V15.6 把 140 个阶段日期逐日展开，检查宏观、宽基、风格、结构和估值五类源是否同时具备观测日、发布日期、生效日期、抓取时间、版本和真实历史快照哈希。今天文件的哈希不能冒充历史快照。">V15.6 不可变时点源快照账本</h2>
+            <span class="panel-kicker">V15.6</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>账本日期</span>
+              <strong id="v15LedgerDates">--</strong>
+            </div>
+            <div class="result-row">
+              <span>完整快照</span>
+              <strong id="v15LedgerComplete">--</strong>
+            </div>
+            <div class="result-row">
+              <span>严格可用</span>
+              <strong id="v15LedgerEligible">--</strong>
+            </div>
+            <div class="result-row">
+              <span>历史 Hash 验证</span>
+              <strong id="v15LedgerHashes">--</strong>
+            </div>
+            <div class="result-row">
+              <span>允许回测</span>
+              <strong id="v15LedgerBacktest">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="v15LedgerSourceRows"></div>
+          <p class="result-note" id="v15LedgerConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="每天把运行时真实可见的宏观、市场阶段、风格、结构和宽基文件复制为不可变快照，并生成仅供未来验证的纸面观察记录；不回测、不输出仓位或交易信号。">V15.7 每日前向快照与纸面决策</h2>
+            <span class="panel-kicker">V15.7</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>快照日期</span>
+              <strong id="v15DailySnapshotDate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>可用源</span>
+              <strong id="v15DailySnapshotSources">--</strong>
+            </div>
+            <div class="result-row">
+              <span>Manifest Hash</span>
+              <strong id="v15DailySnapshotHash">--</strong>
+            </div>
+            <div class="result-row">
+              <span>宏观读数</span>
+              <strong id="v15ForwardMacro">--</strong>
+            </div>
+            <div class="result-row">
+              <span>阶段读数</span>
+              <strong id="v15ForwardPhase">--</strong>
+            </div>
+            <div class="result-row">
+              <span>纸面状态</span>
+              <strong id="v15ForwardDecisionStatus">--</strong>
+            </div>
+            <div class="result-row">
+              <span>日志记录</span>
+              <strong id="v15ForwardJournalRecords">--</strong>
+            </div>
+            <div class="result-row">
+              <span>最新观察日</span>
+              <strong id="v15ForwardJournalLatest">--</strong>
+            </div>
+            <div class="result-row">
+              <span>待回填结果</span>
+              <strong id="v15ForwardJournalPending">--</strong>
+            </div>
+            <div class="result-row">
+              <span>Outcome 记录</span>
+              <strong id="v15ForwardOutcomeRecords">--</strong>
+            </div>
+            <div class="result-row">
+              <span>已完成窗口</span>
+              <strong id="v15ForwardOutcomeCompleted">--</strong>
+            </div>
+            <div class="result-row">
+              <span>待完成窗口</span>
+              <strong id="v15ForwardOutcomePending">--</strong>
+            </div>
+          </div>
+          <p class="result-note" id="v15ForwardConclusion">--</p>
+        </article>
+
+        <div class="dashboard-section-heading">
+          <div>
+            <span>Model Rules</span>
+            <h2>模型验证与生命周期</h2>
+          </div>
+          <p>这些模块用于解释结构事件、模型可靠性、生命周期标签和输出口径。</p>
+        </div>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="把日常状态跳变压缩为更重要的结构事件，减少噪声后观察主周期风险。">结构事件标签</h2>
+            <span class="panel-kicker">H1.1 / H1.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>原始跳变率</span>
+              <strong id="hazardRawRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>结构跳变率</span>
+              <strong id="hazardStructuralRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>样本规模</span>
+              <strong id="hazardRows">--</strong>
+            </div>
+          </div>
+          <p class="result-note" id="hazardConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="用 AUC、Lift 和敏感性区间检查状态模型是否有识别力，以及是否稳定。">模型验证</h2>
+            <span class="panel-kicker">H1.3</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>默认 AUC</span>
+              <strong id="modelAuc">--</strong>
+            </div>
+            <div class="result-row">
+              <span>默认 Lift</span>
+              <strong id="modelLift">--</strong>
+            </div>
+            <div class="result-row">
+              <span>波动单因子 AUC</span>
+              <strong id="volatilityAuc">--</strong>
+            </div>
+            <div class="result-row">
+              <span>敏感性区间</span>
+              <strong id="sensitivityRange">--</strong>
+            </div>
+          </div>
+          <p class="result-note" id="modelConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="统计不同市场状态的持续时间、事件率和生命周期特征，辅助理解策略规则。">生命周期与策略规则</h2>
+            <span class="panel-kicker">H2.1 / R1.2</span>
+          </div>
+          <div class="result-metrics">
+            <div class="result-row">
+              <span>结构事件率</span>
+              <strong id="survivalEventRate">--</strong>
+            </div>
+            <div class="result-row">
+              <span>结构事件数</span>
+              <strong id="survivalEvents">--</strong>
+            </div>
+            <div class="result-row">
+              <span>观察样本</span>
+              <strong id="survivalRows">--</strong>
+            </div>
+          </div>
+          <div class="duration-list" id="durationList"></div>
+        </article>
+
+        <article class="chart-panel result-panel conclusions-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="集中列出页面解释口径和边界，避免把模拟、验证或风险提示误读为交易指令。">结论口径</h2>
+            <span class="panel-kicker">页面展示口径</span>
+          </div>
+          <ul class="conclusion-list" id="conclusionList"></ul>
+        </article>
+      </section>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/charts.js?v=20260629-channels-1"></script>
+    <script src="/static/dashboard.js?v=20260720-v15-forward-outcomes-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

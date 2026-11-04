@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ETF 轮动策略回测</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260630-annualized-table-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="strategy-etf-rotation">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page strategy-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow">ETF Rotation</p>
+          <h1>ETF 轮动策略回测</h1>
+        </div>
+        <a class="back-link" href="/strategies">返回策略频道</a>
+      </div>
+
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+
+      <section class="results-overview strategy-overview" aria-live="polite">
+        <article class="chart-panel result-panel etf-rotation-panel strategy-current-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="根据风格分数和 ETF 近期强弱，输出当前目标 ETF 权重和轮动方向。">当前 ETF 轮动信号</h2>
+            <span class="panel-kicker">A1.2</span>
+          </div>
+          <div class="rotation-headline">
+            <div>
+              <span>轮动方向</span>
+              <strong id="rotationSignal">--</strong>
+            </div>
+            <div>
+              <span>置信度</span>
+              <strong id="rotationConfidence">--</strong>
+            </div>
+          </div>
+          <div class="result-row">
+            <span>首选 ETF</span>
+            <strong id="rotationTopEtf">--</strong>
+          </div>
+          <div class="rotation-weight-list" id="rotationTargetWeights"></div>
+          <div class="rotation-candidate-list" id="rotationCandidateList"></div>
+          <p class="result-note" id="rotationConclusion">--</p>
+        </article>
+
+        <article class="chart-panel result-panel strategy-method-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="本策略在价值/大盘、红利/低波、中小盘、成长/科技、现金/债券代理五类 ETF 中做月度级别再平衡。">策略口径</h2>
+            <span class="panel-kicker">只读模拟</span>
+          </div>
+          <div class="strategy-method-list">
+            <div>
+              <span>资产池</span>
+              <strong>510300 / 510880 / 510500 / 159915 / 511880</strong>
+            </div>
+            <div>
+              <span>调仓节奏</span>
+              <strong>约 20 个交易日再平衡</strong>
+            </div>
+            <div>
+              <span>收益口径</span>
+              <strong>Tushare pct_chg / pre_close 优先</strong>
+            </div>
+          </div>
+          <p class="result-note">
+            这里展示的是 ETF 级模拟权重和历史回测，不选股、不下单、不连接券商。511880 作为现金/债券代理处理。
+          </p>
+        </article>
+      </section>
+
+      <article class="chart-panel result-panel etf-backtest-panel wide-analysis-panel strategy-chart-panel">
+        <div class="panel-heading">
+          <h2 class="help-title" tabindex="0" data-help="检验 ETF 轮动规则在历史区间的收益、回撤、命中率和基准对比；图底部两条状态色带分别表示当时模型可见状态和回看确认状态。">ETF 轮动回测</h2>
+          <div class="panel-actions">
+            <span class="panel-kicker">A1.3</span>
+            <button class="panel-link panel-button" id="rotationBacktestReset" type="button">还原图表</button>
+            <a class="panel-link" href="/rotation-history">调仓历史</a>
+          </div>
+        </div>
+        <div class="wide-panel-layout">
+          <div class="wide-panel-metrics">
+            <div class="backtest-headline">
+              <div>
+                <span>Alpha vs 510500</span>
+                <strong id="backtestAlpha510500">--</strong>
+              </div>
+              <div>
+                <span>Alpha vs 等权</span>
+                <strong id="backtestAlphaEqual">--</strong>
+              </div>
+            </div>
+            <div class="metric-card-grid">
+              <div>
+                <span>轮动收益</span>
+                <strong id="backtestRotationReturn">--</strong>
+              </div>
+              <div>
+                <span>510500收益</span>
+                <strong id="backtestBenchmark510500Return">--</strong>
+              </div>
+              <div>
+                <span>等权收益</span>
+                <strong id="backtestEqualReturn">--</strong>
+              </div>
+              <div>
+                <span>夏普</span>
+                <strong id="backtestSharpe">--</strong>
+              </div>
+              <div>
+                <span>样本</span>
+                <strong id="backtestSessions">--</strong>
+              </div>
+              <div>
+                <span>再平衡</span>
+                <strong id="backtestRebalanceCount">--</strong>
+              </div>
+            </div>
+            <div class="backtest-comparison-table" id="backtestEtfComparison"></div>
+            <div class="result-row">
+              <span>最大回撤</span>
+              <strong id="backtestDrawdown">--</strong>
+            </div>
+            <div class="result-row">
+              <span>命中率</span>
+              <strong id="backtestHitRate">--</strong>
+            </div>
+            <p class="result-note" id="backtestConclusion">--</p>
+          </div>
+          <div class="chart-box rotation-backtest-box strategy-backtest-chart" id="rotationBacktestChart"></div>
+        </div>
+      </article>
+
+      <p class="result-note" id="pageError"></p>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260630-annualized-table-1"></script>
+    <script src="/static/strategy_pages.js?v=20260630-annualized-table-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

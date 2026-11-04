@@ -1,0 +1,1327 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyInvestPicking</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f8fb;
+        --panel: #ffffff;
+        --text: #17202a;
+        --muted: #5f6b7a;
+        --line: #d8dee8;
+        --accent: #0f766e;
+        --buy: #047857;
+        --hold: #92400e;
+        --no-trade: #991b1b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1360px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0;
+      }
+
+      .page-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .status {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        overflow: hidden;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .toolbar h2 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 650;
+        letter-spacing: 0;
+      }
+
+      #summary {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        max-width: 760px;
+      }
+
+      .summary-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 26px;
+        padding: 0 9px;
+        border: 1px solid #dbe4e1;
+        border-radius: 6px;
+        background: #f9fbfa;
+        color: var(--text);
+        cursor: help;
+        font-size: 12px;
+        font-weight: 650;
+        white-space: nowrap;
+      }
+
+      .summary-pill span {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #e8f3f1;
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      .stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      .candidate-table {
+        min-width: 0;
+      }
+
+      .signal-table {
+        min-width: 960px;
+      }
+
+      th,
+      td {
+        padding: 13px 16px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        white-space: nowrap;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      td {
+        font-size: 14px;
+      }
+
+      .candidate-table th,
+      .candidate-table td {
+        padding: 8px 5px;
+        font-size: 12px;
+      }
+
+      .candidate-table th {
+        font-size: 11px;
+      }
+
+      .compact-cell {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .stock-link {
+        color: inherit;
+        text-decoration: none;
+        border-bottom: 1px dotted rgba(15, 118, 110, 0.45);
+      }
+
+      .stock-link:hover {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      .score-cell {
+        cursor: help;
+      }
+
+      .score-cell strong {
+        display: block;
+        font-weight: 700;
+      }
+
+      .score-cell span,
+      .confidence span:first-child {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .signal {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .signal-buy {
+        background: #dff5ea;
+        color: var(--buy);
+      }
+
+      .signal-hold {
+        background: #fff1d6;
+        color: var(--hold);
+      }
+
+      .signal-no-trade {
+        background: #fde2e2;
+        color: var(--no-trade);
+      }
+
+      .state-buyable {
+        background: #dff5ea;
+        color: var(--buy);
+      }
+
+      .state-watch {
+        background: #fff1d6;
+        color: var(--hold);
+      }
+
+      .state-risk-blocked {
+        background: #fde2e2;
+        color: var(--no-trade);
+      }
+
+      .state-research {
+        background: #e8edf5;
+        color: #475569;
+      }
+
+      .confidence {
+        display: grid;
+        gap: 5px;
+        min-width: 110px;
+      }
+
+      .confidence-track {
+        height: 6px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e8edf5;
+      }
+
+      .confidence-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: var(--accent);
+      }
+
+      .shadow-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+        gap: 18px;
+        padding: 18px 20px 20px;
+      }
+
+      .shadow-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .candidate-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        padding: 14px 16px 18px;
+      }
+
+      .candidate-group {
+        min-width: 0;
+      }
+
+      .candidate-group-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .candidate-group-title span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .gate-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.55fr);
+        gap: 16px;
+        padding: 18px 20px 20px;
+      }
+
+      .gate-headline {
+        margin: 0 0 12px;
+        font-size: 15px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      .gate-metrics,
+      .gate-reasons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .gate-reasons {
+        align-content: flex-start;
+      }
+
+      .chart {
+        display: block;
+        width: 100%;
+        height: 220px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfe;
+      }
+
+      .chart path,
+      .chart polyline {
+        fill: none;
+        stroke: var(--accent);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2.5;
+      }
+
+      .chart .chart-grid {
+        stroke: #dfe5ee;
+        stroke-width: 1;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 8px;
+        max-height: 300px;
+        overflow: auto;
+      }
+
+      .api-overview {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+        gap: 18px;
+        padding: 18px 20px 20px;
+      }
+
+      .api-summary,
+      .api-list,
+      .api-boundary {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+      }
+
+      .api-list h3,
+      .api-boundary h3 {
+        margin: 0 0 4px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 750;
+        text-transform: uppercase;
+      }
+
+      .api-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 34px;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfe;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .api-row strong {
+        flex: 0 0 auto;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .api-row span {
+        min-width: 0;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+        text-align: right;
+        white-space: normal;
+      }
+
+      .api-row a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .api-boundary {
+        grid-column: 1 / -1;
+      }
+
+      .history-item {
+        display: grid;
+        grid-template-columns: 88px 1fr auto;
+        align-items: center;
+        gap: 10px;
+        min-height: 42px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfe;
+        cursor: help;
+      }
+
+      .history-item strong {
+        font-size: 13px;
+      }
+
+      .history-item span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .reason {
+        cursor: help;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .signal-table td:nth-child(1),
+      .signal-table th:nth-child(1) {
+        width: 112px;
+      }
+
+      .signal-table td:nth-child(2),
+      .signal-table th:nth-child(2) {
+        width: 150px;
+      }
+
+      .signal-table td:nth-child(3),
+      .signal-table th:nth-child(3) {
+        width: 104px;
+      }
+
+      .signal-table td:nth-child(4),
+      .signal-table th:nth-child(4) {
+        width: 92px;
+      }
+
+      .signal-table td:nth-child(5),
+      .signal-table th:nth-child(5) {
+        width: 96px;
+      }
+
+      .signal-table td:nth-child(6),
+      .signal-table th:nth-child(6) {
+        width: 128px;
+      }
+
+      .signal-table td:nth-child(8),
+      .signal-table th:nth-child(8) {
+        width: 120px;
+      }
+
+      .signal-table td:nth-child(7),
+      .signal-table th:nth-child(7) {
+        width: auto;
+      }
+
+      .candidate-table td:nth-child(1),
+      .candidate-table th:nth-child(1) {
+        width: 32px;
+      }
+
+      .candidate-table td:nth-child(2),
+      .candidate-table th:nth-child(2) {
+        width: 76px;
+      }
+
+      .candidate-table td:nth-child(3),
+      .candidate-table th:nth-child(3) {
+        width: 70px;
+      }
+
+      .candidate-table td:nth-child(4),
+      .candidate-table th:nth-child(4) {
+        width: 58px;
+      }
+
+      .empty,
+      .error {
+        padding: 32px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .error {
+        color: #b42318;
+      }
+
+      @media (max-width: 640px) {
+        .page-header,
+        .toolbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        #summary {
+          justify-content: flex-start;
+        }
+
+        .shadow-grid {
+          grid-template-columns: 1fr;
+          padding: 14px 14px 16px;
+        }
+
+        .api-overview {
+          grid-template-columns: 1fr;
+          padding: 14px 14px 16px;
+        }
+
+        .gate-grid {
+          grid-template-columns: 1fr;
+          padding: 14px 14px 16px;
+        }
+
+        .candidate-grid {
+          grid-template-columns: 1fr;
+          padding: 14px 14px 16px;
+        }
+
+        main {
+          width: min(100% - 24px, 1040px);
+          padding: 24px 0;
+        }
+
+        h1 {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div data-myinvest-header></div>
+    <main>
+      <header class="page-header">
+        <div>
+          <h1>MyInvestPicking</h1>
+          <div class="status">A 股满仓股票影子组合工作台</div>
+        </div>
+        <div class="badge">Port 8019</div>
+      </header>
+
+      <div class="stack">
+        <section class="panel" aria-labelledby="candidate-title">
+          <div class="toolbar">
+            <h2 id="candidate-title">候选榜</h2>
+            <div class="status" id="summary">正在加载 /api/picks</div>
+          </div>
+          <div class="candidate-grid">
+            <div class="candidate-group">
+              <div class="candidate-group-title">价值候选 <span>便宜但必须有行业强弱确认</span></div>
+              <div class="table-wrap">
+                <table class="candidate-table" aria-label="价值候选排序">
+                  <thead>
+                    <tr>
+                      <th>排名</th>
+                      <th>代码</th>
+                      <th>名称</th>
+                      <th>候选分</th>
+                      <th>关键因子</th>
+                    </tr>
+                  </thead>
+                  <tbody id="value-candidates">
+                    <tr>
+                      <td colspan="5" class="empty">暂无候选。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="candidate-group">
+              <div class="candidate-group-title">成长候选 <span>营收、利润、ROE 改善</span></div>
+              <div class="table-wrap">
+                <table class="candidate-table" aria-label="成长候选排序">
+                  <thead>
+                    <tr>
+                      <th>排名</th>
+                      <th>代码</th>
+                      <th>名称</th>
+                      <th>候选分</th>
+                      <th>关键因子</th>
+                    </tr>
+                  </thead>
+                  <tbody id="growth-candidates">
+                    <tr>
+                      <td colspan="5" class="empty">暂无候选。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="candidate-group">
+              <div class="candidate-group-title">趋势候选 <span>60/120 日趋势和放量</span></div>
+              <div class="table-wrap">
+                <table class="candidate-table" aria-label="趋势候选排序">
+                  <thead>
+                    <tr>
+                      <th>排名</th>
+                      <th>代码</th>
+                      <th>名称</th>
+                      <th>候选分</th>
+                      <th>关键因子</th>
+                    </tr>
+                  </thead>
+                  <tbody id="trend-candidates">
+                    <tr>
+                      <td colspan="5" class="empty">暂无候选。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="signal-title">
+          <div class="toolbar">
+            <h2 id="signal-title">目标组合</h2>
+            <div class="status">满仓影子组合目标权重</div>
+          </div>
+          <div class="table-wrap">
+            <table class="signal-table" aria-label="信号和风控闸门状态">
+              <thead>
+                <tr>
+                  <th>代码</th>
+                  <th>名称</th>
+                  <th>状态</th>
+                  <th>仓位</th>
+                  <th>Final</th>
+                  <th>置信度</th>
+                  <th>原因</th>
+                  <th>行业</th>
+                </tr>
+              </thead>
+              <tbody id="picks">
+                <tr>
+                  <td colspan="8" class="empty">暂无信号。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="gate-title">
+          <div class="toolbar">
+            <h2 id="gate-title">调仓规则</h2>
+            <div class="status" id="gate-status">等待组合摘要</div>
+          </div>
+          <div class="gate-grid">
+            <div>
+              <p class="gate-headline" id="gate-headline">暂无闸门摘要。</p>
+              <div class="gate-metrics" id="gate-metrics"></div>
+            </div>
+            <div class="gate-reasons" id="gate-reasons"></div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="shadow-title">
+          <div class="toolbar">
+            <h2 id="shadow-title">影子组合</h2>
+            <div class="status" id="shadow-status">等待信号</div>
+          </div>
+          <div class="shadow-grid">
+            <div>
+              <div class="shadow-summary" id="shadow-summary"></div>
+              <svg class="chart" id="shadow-chart" role="img" aria-label="影子组合净值曲线"></svg>
+            </div>
+            <div class="history-list" id="rebalance-history">
+              <div class="empty">暂无调仓历史。</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="api-title">
+          <div class="toolbar">
+            <h2 id="api-title">接口说明</h2>
+            <div class="status" id="api-status">正在加载 /api</div>
+          </div>
+          <div class="api-overview">
+            <div class="api-summary" id="api-summary">
+              <div class="empty">暂无接口目录。</div>
+            </div>
+            <div class="api-list">
+              <h3>推荐入口</h3>
+              <div id="api-entrypoints">
+                <div class="empty">暂无推荐入口。</div>
+              </div>
+            </div>
+            <div class="api-list">
+              <h3>接口分组</h3>
+              <div id="api-groups">
+                <div class="empty">暂无接口分组。</div>
+              </div>
+            </div>
+            <div class="api-boundary">
+              <h3>安全边界</h3>
+              <div id="api-safety">
+                <div class="empty">暂无安全边界。</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]" defer></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]" defer></script>
+    <script>
+      const picksBody = document.querySelector("#picks");
+      const candidateBodies = {
+        value: document.querySelector("#value-candidates"),
+        growth: document.querySelector("#growth-candidates"),
+        trend: document.querySelector("#trend-candidates"),
+      };
+      const summary = document.querySelector("#summary");
+      const gateStatus = document.querySelector("#gate-status");
+      const gateHeadline = document.querySelector("#gate-headline");
+      const gateMetrics = document.querySelector("#gate-metrics");
+      const gateReasons = document.querySelector("#gate-reasons");
+      const shadowStatus = document.querySelector("#shadow-status");
+      const shadowSummary = document.querySelector("#shadow-summary");
+      const shadowChart = document.querySelector("#shadow-chart");
+      const rebalanceHistory = document.querySelector("#rebalance-history");
+      const apiStatus = document.querySelector("#api-status");
+      const apiSummary = document.querySelector("#api-summary");
+      const apiEntrypoints = document.querySelector("#api-entrypoints");
+      const apiGroups = document.querySelector("#api-groups");
+      const apiSafety = document.querySelector("#api-safety");
+
+      const formatValue = (value) => {
+        if (value === null || value === undefined) return "-";
+        return Number(value).toFixed(4);
+      };
+
+      loadApiCatalog();
+
+      fetch("/api/picks?shadow_days=0")
+        .then((response) => response.json())
+        .then((payload) => {
+          const data = payload.portfolio || payload.data || [];
+          const signals = payload.signals || data;
+          const risk = payload.risk || {};
+          const portfolioMode = payload.portfolio_mode || {};
+          const regime = payload.market_regime || {};
+          const exposure = risk.portfolio_exposure ?? payload.risk_budget?.target_exposure ?? 0;
+          const bjExposure = risk.exchange_exposure?.BJ ?? 0;
+          const bjCap = risk.max_beijing_weight ?? payload.risk_budget?.max_beijing_weight ?? 0;
+          const health = payload.factor_health?.factor_health_score ?? 0;
+          const stability = payload.portfolio_stability?.stability_score ?? 0;
+          const sharpe = payload.backtest?.metrics?.sharpe ?? 0;
+          const scoreMode = payload.score_profile?.mode || "growth_trend";
+          const signalCounts = payload.signal_summary?.counts || {};
+          const operationCounts = payload.signal_summary?.operation_counts || {};
+          const buyCount = signalCounts.BUY ?? 0;
+          const holdCount = signalCounts.HOLD ?? 0;
+          const noTradeCount = signalCounts.NO_TRADE ?? 0;
+          const buyableCount = operationCounts.buyable ?? 0;
+          const watchCount = operationCounts.watch ?? 0;
+          const blockedCount = operationCounts.risk_blocked ?? 0;
+          const researchCount = operationCounts.research ?? 0;
+          summary.title = [
+            `北交所暴露 ${formatValue(bjExposure)} / ${formatValue(bjCap)}`,
+            `因子健康度 ${formatValue(health)}`,
+            `组合稳定度 ${formatValue(stability)}`,
+            `回测 Sharpe ${formatValue(sharpe)}`,
+            `组合模式 ${portfolioMode.name || "full_invested_shadow_portfolio"}`,
+            `打分模式 ${scoreMode}`,
+            `${signals.length} 个信号`,
+          ].join("\n");
+          summary.innerHTML = [
+            summaryPill("日期", payload.trading_date || payload.date, summary.title),
+            summaryPill("组合", portfolioMode.target_exposure === 1 ? "满仓" : "目标组合", summary.title),
+            summaryPill("暴露", formatValue(exposure), summary.title),
+            summaryPill("模式", scoreMode === "growth_trend" ? "成长/趋势" : scoreMode, summary.title),
+            summaryPill("信号", `买 ${buyCount} / 持 ${holdCount} / 禁 ${noTradeCount}`, summary.title),
+            summaryPill("状态", `可买 ${buyableCount} / 观察 ${watchCount} / 拦截 ${blockedCount} / 研究 ${researchCount}`, summary.title),
+          ].join("");
+          renderCandidatePools(payload.candidate_pools || {});
+          renderGateSummary(payload.gate_summary);
+
+          if (signals.length === 0) {
+            picksBody.innerHTML =
+              '<tr><td colspan="8" class="empty">暂无信号。</td></tr>';
+            loadShadowPortfolio();
+            return;
+          }
+
+          picksBody.innerHTML = signals
+            .map(
+              (pick) => `
+                <tr>
+                  <td class="compact-cell" title="${escapeAttr(codeDetail(pick))}">${stockCodeLink(pick)}</td>
+                  <td class="compact-cell" title="${escapeAttr(nameDetail(pick))}">${stockNameLink(pick)}</td>
+                  <td title="${escapeAttr(decisionDetail(pick))}"><span class="signal ${stateClass(pick.operation_state)}">${displayOperationState(pick.operation_state)}</span></td>
+                  <td title="${escapeAttr(weightDetail(pick))}">${formatValue(pick.position_size ?? pick.weight)}</td>
+                  <td class="score-cell" title="${escapeAttr(scoreDetail(pick))}">
+                    <strong>${formatValue(pick.final_score)}</strong>
+                    <span>基础 ${formatValue(pick.score)}</span>
+                  </td>
+                  <td title="${escapeAttr(confidenceDetail(pick))}">
+                    <div class="confidence">
+                      <span>${formatValue(pick.confidence)}</span>
+                      <span class="confidence-track"><span class="confidence-fill" style="width: ${confidenceWidth(pick.confidence)}%"></span></span>
+                    </div>
+                  </td>
+                  <td class="reason" title="${escapeAttr(decisionDetail(pick))}">${escapeHtml(reasonText(pick))}</td>
+                  <td class="compact-cell" title="${escapeAttr(industryDetail(pick))}">${escapeHtml(pick.industry || "-")}</td>
+                </tr>
+              `,
+            )
+            .join("");
+          loadShadowPortfolio();
+        })
+        .catch(() => {
+          summary.textContent = "API 不可用";
+          Object.values(candidateBodies).forEach((body) => {
+            body.innerHTML = '<tr><td colspan="5" class="error">候选榜加载失败。</td></tr>';
+          });
+          gateStatus.textContent = "API 不可用";
+          shadowStatus.textContent = "API 不可用";
+          picksBody.innerHTML =
+            '<tr><td colspan="8" class="error">信号加载失败。</td></tr>';
+        });
+
+      function signalClass(action) {
+        if (action === "BUY") return "signal-buy";
+        if (action === "HOLD") return "signal-hold";
+        return "signal-no-trade";
+      }
+
+      function stateClass(state) {
+        if (state === "buyable") return "state-buyable";
+        if (state === "watch") return "state-watch";
+        if (state === "risk_blocked") return "state-risk-blocked";
+        return "state-research";
+      }
+
+      function displayAction(action) {
+        return action === "NO_TRADE" ? "NO TRADE" : action || "NO TRADE";
+      }
+
+      function displayOperationState(state) {
+        if (state === "buyable") return "目标持仓";
+        if (state === "watch") return "观察";
+        if (state === "risk_blocked") return "风险拦截";
+        return "研究名单";
+      }
+
+      function confidenceWidth(value) {
+        if (value === null || value === undefined) return 0;
+        return Math.max(0, Math.min(100, Number(value) * 100));
+      }
+
+      function reasonText(signal) {
+        const reason = signal.reason || {};
+        const blocked = reason.tradability_reasons || [];
+        if (blocked.length > 0) return blocked.join(", ");
+        if ((signal.gate_reasons || []).includes("backtest_block")) {
+          return `回测硬拦截：Sharpe ${formatValue(reason.backtest?.sharpe)}`;
+        }
+        if ((signal.gate_reasons || []).includes("backtest_reduce")) {
+          return signal.position_policy === "probe_only"
+            ? `小仓试探：Sharpe ${formatValue(reason.backtest?.sharpe)}`
+            : `观察：Sharpe ${formatValue(reason.backtest?.sharpe)}`;
+        }
+        return `${displayOperationState(signal.operation_state)}，目标满仓组合`;
+      }
+
+      function summaryPill(label, value, detail) {
+        return `<span class="summary-pill" title="${escapeAttr(detail)}"><span>${escapeHtml(label)}</span>${escapeHtml(value ?? "-")}</span>`;
+      }
+
+      function codeDetail(signal) {
+        const metrics = signal.metrics || {};
+        return [
+          `${signal.code} ${signal.name || ""}`,
+          `收盘 ${formatValue(metrics.close)} | 涨跌 ${formatValue(metrics.latest_pct_chg)}%`,
+          `成交额 ${formatValue(metrics.latest_amount)} | 换手 ${formatValue(metrics.turnover_rate)}%`,
+        ].join("\n");
+      }
+
+      function renderCandidatePools(pools) {
+        const fallback = pools.composite || [];
+        renderCandidates(candidateBodies.value, pools.value || fallback, "value");
+        renderCandidates(candidateBodies.growth, pools.growth || fallback, "growth");
+        renderCandidates(candidateBodies.trend, pools.trend || fallback, "trend");
+      }
+
+      function renderCandidates(targetBody, candidates, style) {
+        if (!candidates.length) {
+          targetBody.innerHTML =
+            '<tr><td colspan="5" class="empty">暂无候选。</td></tr>';
+          return;
+        }
+        targetBody.innerHTML = candidates
+          .map((candidate, index) => {
+            const detail = [
+              scoreDetail(candidate),
+              `收盘 ${formatValue(candidate.metrics?.close)} | 涨跌 ${formatValue(candidate.metrics?.latest_pct_chg)}%`,
+              `成交额 ${formatValue(candidate.metrics?.latest_amount)} | 换手 ${formatValue(candidate.metrics?.turnover_rate)}%`,
+            ].join("\n");
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td class="compact-cell" title="${escapeAttr(codeDetail(candidate))}">${stockCodeLink(candidate)}</td>
+                <td class="compact-cell" title="${escapeAttr(nameDetail(candidate))}">${stockNameLink(candidate)}</td>
+                <td class="score-cell" title="${escapeAttr(detail)}"><strong>${formatValue(candidate.candidate_score ?? candidate.score)}</strong></td>
+                <td class="reason" title="${escapeAttr(detail)}">${escapeHtml(candidateValueText(candidate, style))}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      function candidateValueText(candidate, style) {
+        const factors = candidate.factors || {};
+        const metrics = candidate.metrics || {};
+        if (style === "value") {
+          return `估值 ${formatValue(factors.value)} / 行业 ${formatValue(factors.industry_strength)} / 质量 ${formatValue(factors.quality)}`;
+        }
+        if (style === "growth") {
+          const theme = themeText(metrics);
+          if (Number(metrics.growth_data_quality ?? factors.growth_data_quality ?? 0) < 0.5) {
+            return `题材 ${theme} / 主题 ${formatValue(factors.growth_theme_profile)} / 放量 ${formatValue(metrics.amount_expansion_20d)}`;
+          }
+          return `题材 ${theme} / 成长 ${formatValue(factors.growth)} / 营收 ${formatValue(metrics.revenue_growth_yoy)}`;
+        }
+        return `趋势 ${formatValue(factors.trend)} / 60日 ${formatValue(metrics.momentum_60d)} / 放量 ${formatValue(metrics.amount_expansion_20d)}`;
+      }
+
+      function stockCodeLink(stock) {
+        return `<a class="stock-link" href="${escapeAttr(xueqiuUrl(stock.code))}" target="_blank" rel="noopener noreferrer">${escapeHtml(stock.code || "-")}</a>`;
+      }
+
+      function stockNameLink(stock) {
+        return `<a class="stock-link" href="${escapeAttr(stockResearchUrl(stock.code))}" target="_blank" rel="noopener noreferrer">${escapeHtml(stock.name || "-")}</a>`;
+      }
+
+      function xueqiuUrl(code) {
+        const parts = stockCodeParts(code);
+        return parts ? `https://xueqiu.com/S/${parts.exchange}${parts.symbol}` : "https://xueqiu.com/";
+      }
+
+      function stockResearchUrl(code) {
+        const normalized = normalizedStockCode(code);
+        return `https://stock.okbbc.com/research?stock=${encodeURIComponent(normalized)}`;
+      }
+
+      function stockCodeParts(code) {
+        const normalized = normalizedStockCode(code);
+        const parts = normalized.split(".");
+        if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+        return { symbol: parts[0], exchange: parts[1] };
+      }
+
+      function normalizedStockCode(code) {
+        return String(code || "").trim().toUpperCase();
+      }
+
+      function nameDetail(signal) {
+        const metrics = signal.metrics || {};
+        return `${signal.name || "-"}\n${signal.code}\n行业：${signal.industry || "-"}\n题材：${themeText(metrics)}`;
+      }
+
+      function weightDetail(signal) {
+        return [
+          `操作仓位 ${formatValue(signal.position_size ?? signal.weight)}`,
+          `原始组合权重 ${formatValue(signal.weight)}`,
+        ].join("\n");
+      }
+
+      function scoreDetail(signal) {
+        const factors = signal.factors || {};
+        const metrics = signal.metrics || {};
+        return [
+          `最终分 ${formatValue(signal.final_score)} | 基础分 ${formatValue(signal.score)}`,
+          `趋势 ${formatValue(factors.trend)} | 成长 ${formatValue(factors.growth)} | 成长主题 ${formatValue(factors.growth_theme_profile)} | 成长行业 ${formatValue(factors.growth_industry_profile)}`,
+          `题材 ${themeText(metrics)} | 来源 ${metrics.theme_source || "none"}`,
+          `成长数据覆盖 ${formatValue(metrics.growth_data_quality ?? factors.growth_data_quality)}`,
+          `20日动量 ${formatValue(factors.momentum)} | 质量 ${formatValue(factors.quality)}`,
+          `估值 ${formatValue(factors.value)} | 风险 ${formatValue(factors.risk)}`,
+          `风险调整 ${formatValue(signal.risk_adjust_factor)} | 满仓模式 ${formatValue(signal.regime_multiplier)}`,
+          `健康度 ${formatValue(signal.factor_health_score)} | 交易所 ${formatValue(signal.exchange_risk_multiplier)} | 流动性 ${formatValue(signal.liquidity_risk_multiplier)}`,
+        ].join("\n");
+      }
+
+      function confidenceDetail(signal) {
+        const components = signal.signal_confidence?.components || signal.reason?.confidence_components || {};
+        return [
+          `置信度 ${formatValue(signal.confidence)}`,
+          `因子一致性 ${formatValue(components.factor_consistency)}`,
+          `组合适配 ${formatValue(components.regime_alignment)}`,
+          `成交确认 ${formatValue(components.volume_confirmation)}`,
+          `周期一致性 ${formatValue(components.timeframe_alignment)}`,
+          `因子健康度 ${formatValue(components.factor_health)}`,
+        ].join("\n");
+      }
+
+      function decisionDetail(signal) {
+        const reason = signal.reason || {};
+        const backtest = reason.backtest || {};
+        const tradability = signal.tradability || {};
+        const tradabilityText = tradability.tradable === false
+          ? `个股不可交易：${(tradability.reasons || []).join(", ")}`
+          : "个股可交易";
+        return [
+          `操作状态 ${displayOperationState(signal.operation_state)}`,
+          `交易信号 ${displayAction(signal.action)}`,
+          reasonText(signal),
+          tradabilityText,
+          `仓位策略 ${signal.position_policy || "-"}`,
+          `闸门原因 ${(signal.gate_reasons || []).join(", ") || "-"}`,
+          `组合模式 ${reason.regime === "ignored" ? "full_shadow" : (reason.regime || "-")}`,
+          `回测 Sharpe ${formatValue(backtest.sharpe)} | 最大回撤 ${formatValue(backtest.max_drawdown)}`,
+          `回测仅观察 ${backtest.state === "observed" ? "是" : "否"} | 降仓 ${backtest.reduce_buy ? "是" : "否"}`,
+        ].join("\n");
+      }
+
+      function industryDetail(signal) {
+        return `${signal.industry || "-"}\n${signal.code} ${signal.name || ""}\n题材：${themeText(signal.metrics || {})}`;
+      }
+
+      function themeText(metrics) {
+        const tags = String(metrics.theme_tags || "").split("|").filter(Boolean);
+        if (!tags.length) return "-";
+        return tags.slice(0, 2).join(" / ");
+      }
+
+      function renderGateSummary(gate) {
+        if (!gate) {
+          gateStatus.textContent = "暂无闸门摘要";
+          gateHeadline.textContent = "暂无闸门摘要。";
+          gateMetrics.innerHTML = "";
+          gateReasons.innerHTML = "";
+          return;
+        }
+        const backtest = gate.backtest_gate || {};
+        const market = gate.market_gate || {};
+        const operationCounts = gate.operation_counts || {};
+        const reasonCounts = gate.reason_counts || {};
+        const detail = [
+          `回测状态 ${backtest.state || "-"}`,
+          `Sharpe ${formatValue(backtest.sharpe)}`,
+          `最大回撤 ${percentValue(backtest.max_drawdown)}`,
+          `仓位缩放 ${formatValue(backtest.position_scale)}`,
+          `组合模式 ${market.state === "ignored" ? "full_shadow" : (market.state || "-")}`,
+        ].join("\n");
+        gateStatus.textContent = backtest.state === "observed"
+          ? "满仓调仓"
+          : backtest.state === "reduced"
+          ? "回测降仓"
+          : backtest.state === "blocked"
+            ? "回测硬拦截"
+            : "闸门摘要";
+        gateStatus.title = detail;
+        gateHeadline.textContent = gate.headline || "暂无激活闸门。";
+        gateHeadline.title = detail;
+        gateMetrics.innerHTML = [
+          summaryPill("Sharpe", formatValue(backtest.sharpe), detail),
+          summaryPill("MDD", percentValue(backtest.max_drawdown), detail),
+          summaryPill("缩放", formatValue(backtest.position_scale), detail),
+          summaryPill("模式", market.state === "ignored" ? "满仓" : (market.state || "-"), detail),
+          summaryPill("可买", operationCounts.buyable || 0, detail),
+          summaryPill("观察", operationCounts.watch || 0, detail),
+          summaryPill("拦截", operationCounts.risk_blocked || 0, detail),
+          summaryPill("研究", operationCounts.research || 0, detail),
+        ].join("");
+        gateReasons.innerHTML = Object.entries(reasonCounts)
+          .sort((left, right) => Number(right[1]) - Number(left[1]))
+          .map(([reason, count]) => summaryPill(gateReasonLabel(reason), count, detail))
+          .join("");
+      }
+
+      function gateReasonLabel(reason) {
+        const labels = {
+          backtest_block: "回测硬拦截",
+          backtest_reduce: "回测降仓",
+          backtest_caution: "回测谨慎",
+          tradability_block: "个股不可交易",
+          market_crash: "市场崩盘",
+          market_high_vol: "高波动",
+          correlation_cluster: "相关性拥挤",
+          low_candidate_score: "候选分低",
+          low_confidence: "置信度低",
+        };
+        return labels[reason] || reason;
+      }
+
+      function renderShadowPortfolio(shadow) {
+        if (!shadow || shadow.status !== "ok") {
+          const reason = shadow?.reason || "暂无影子组合数据";
+          shadowStatus.textContent = reason;
+          shadowSummary.innerHTML = "";
+          shadowChart.innerHTML = "";
+          rebalanceHistory.innerHTML = `<div class="empty">${escapeHtml(reason)}</div>`;
+          return;
+        }
+
+        const info = shadow.summary || {};
+        const metrics = shadow.metrics || {};
+        const detail = [
+          `模式：${shadow.assumptions?.rebalance || "daily_new_picks"}`,
+          `仓位来源：${shadow.assumptions?.position_source || "BUY position_size"}`,
+          `Sharpe ${formatValue(metrics.sharpe)} | MDD ${formatValue(metrics.max_drawdown)}`,
+          `换手 ${formatValue(metrics.turnover)}`,
+        ].join("\n");
+        shadowStatus.textContent = `${info.start_date} 至 ${info.end_date}`;
+        shadowStatus.title = detail;
+        shadowSummary.innerHTML = [
+          summaryPill("净值", formatValue(info.end_nav), detail),
+          summaryPill("收益", percentValue(info.total_return), detail),
+          summaryPill("MDD", percentValue(info.max_drawdown), detail),
+          summaryPill("暴露", formatValue(info.latest_exposure), detail),
+          summaryPill("调仓", info.rebalance_count, detail),
+        ].join("");
+        renderNavChart(shadow.equity_curve || []);
+        renderRebalanceHistory(shadow.rebalance_history || []);
+      }
+
+      function loadApiCatalog() {
+        fetch("/api")
+          .then((response) => response.json())
+          .then((catalog) => renderApiCatalog(catalog))
+          .catch(() => {
+            apiStatus.textContent = "接口目录不可用";
+            apiSummary.innerHTML = '<div class="error">接口目录加载失败。</div>';
+            apiEntrypoints.innerHTML = "";
+            apiGroups.innerHTML = "";
+            apiSafety.innerHTML = "";
+          });
+      }
+
+      function renderApiCatalog(catalog) {
+        const system = catalog.system || {};
+        const groups = catalog.groups || [];
+        const entries = catalog.recommended_entrypoints || [];
+        const safety = catalog.safety || {};
+        const groupDetail = groups
+          .map((group) => `${group.name}: ${(group.endpoints || []).length}`)
+          .join("\n");
+        apiStatus.textContent = `${catalog.total_endpoints || 0} 个公开接口`;
+        apiStatus.title = groupDetail;
+        apiSummary.innerHTML = [
+          summaryPill("系统", system.name || "MyInvestPicking", system.description || ""),
+          summaryPill("版本", system.version || "-", system.description || ""),
+          summaryPill("Base", catalog.base_url || "-", catalog.base_url || ""),
+          summaryPill("接口", catalog.total_endpoints || 0, groupDetail),
+        ].join("");
+        apiEntrypoints.innerHTML = entries
+          .map((entry) => apiRow(apiPathLink(entry.path), entry.purpose || ""))
+          .join("");
+        apiGroups.innerHTML = groups
+          .map((group) => {
+            const endpoints = group.endpoints || [];
+            const detail = endpoints.map((endpoint) => `${endpoint.method} ${endpoint.path}`).join("\n");
+            return apiRow(
+              `${escapeHtml(group.name)} <span>${endpoints.length}</span>`,
+              group.description || detail,
+              detail,
+            );
+          })
+          .join("");
+        apiSafety.innerHTML = Object.entries(safety)
+          .map(([key, value]) => apiRow(escapeHtml(safetyLabel(key)), value))
+          .join("");
+      }
+
+      function apiPathLink(path) {
+        const safePath = String(path || "/api");
+        return `<a href="${escapeAttr(safePath)}" target="_blank" rel="noopener noreferrer">${escapeHtml(safePath)}</a>`;
+      }
+
+      function apiRow(title, text, detail) {
+        return `<div class="api-row" title="${escapeAttr(detail || text || "")}"><strong>${title}</strong><span>${escapeHtml(text || "")}</span></div>`;
+      }
+
+      function safetyLabel(key) {
+        const labels = {
+          catalog: "目录",
+          trading: "交易",
+          positioning: "仓位",
+          runtime_writes: "运行写入",
+          secrets: "密钥",
+        };
+        return labels[key] || key;
+      }
+
+      function loadShadowPortfolio() {
+        shadowStatus.textContent = "正在生成影子组合";
+        fetch("/api/shadow-portfolio?shadow_days=5")
+          .then((response) => response.json())
+          .then((payload) => {
+            renderShadowPortfolio(payload.shadow_portfolio);
+          })
+          .catch(() => {
+            shadowStatus.textContent = "影子组合不可用";
+            shadowSummary.innerHTML = "";
+            shadowChart.innerHTML = "";
+            rebalanceHistory.innerHTML =
+              '<div class="error">影子组合加载失败。</div>';
+          });
+      }
+
+      function renderNavChart(points) {
+        if (!points.length) {
+          shadowChart.innerHTML = "";
+          return;
+        }
+        const width = 640;
+        const height = 220;
+        const pad = 24;
+        const navs = points.map((point) => Number(point.nav || 1));
+        const min = Math.min(...navs);
+        const max = Math.max(...navs);
+        const range = Math.max(max - min, 0.0001);
+        const coords = points
+          .map((point, index) => {
+            const x = points.length === 1
+              ? width / 2
+              : pad + (index * (width - pad * 2)) / (points.length - 1);
+            const y = height - pad - ((Number(point.nav || 1) - min) / range) * (height - pad * 2);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+          })
+          .join(" ");
+        shadowChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+        shadowChart.innerHTML = `
+          <line class="chart-grid" x1="${pad}" y1="${pad}" x2="${width - pad}" y2="${pad}"></line>
+          <line class="chart-grid" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}"></line>
+          <polyline points="${coords}"></polyline>
+          <text x="${pad}" y="18" fill="#5f6b7a" font-size="12">${formatValue(max)}</text>
+          <text x="${pad}" y="${height - 6}" fill="#5f6b7a" font-size="12">${formatValue(min)}</text>
+        `;
+      }
+
+      function renderRebalanceHistory(history) {
+        if (!history.length) {
+          rebalanceHistory.innerHTML = '<div class="empty">暂无调仓历史。</div>';
+          return;
+        }
+        rebalanceHistory.innerHTML = history
+          .slice()
+          .reverse()
+          .map((item) => {
+            const counts = item.signal_counts || {};
+            const changes = item.changes || [];
+            const title = [
+              `调仓日 ${item.rebalance_date}，生效日 ${item.applied_date}`,
+              `净值 ${formatValue(item.nav)} | 暴露 ${formatValue(item.target_exposure)}`,
+              `换手 ${formatValue(item.turnover)} | 成本 ${formatValue(item.cost)}`,
+              `组合收益 ${formatValue(item.portfolio_return)}`,
+              `信号 买 ${counts.BUY || 0} / 持 ${counts.HOLD || 0} / 禁 ${counts.NO_TRADE || 0}`,
+              changes.length
+                ? changes.map((change) => `${change.code} ${formatValue(change.previous_weight)} -> ${formatValue(change.target_weight)}`).join("\n")
+                : "无仓位变化",
+            ].join("\n");
+            return `
+              <div class="history-item" title="${escapeAttr(title)}">
+                <strong>${escapeHtml(item.applied_date)}</strong>
+                <span>净值 ${formatValue(item.nav)} · 暴露 ${formatValue(item.target_exposure)}</span>
+                <span>${changes.length} 项变动</span>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function percentValue(value) {
+        if (value === null || value === undefined) return "-";
+        return `${(Number(value) * 100).toFixed(2)}%`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function escapeAttr(value) {
+        return escapeHtml(value)
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;")
+          .replace(/\n/g, "&#10;");
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+{
+  "000300.SH": {
+    "code": "000300.SH",
+    "name": "沪深300价格指数",
+    "color": "#2563eb",
+    "start": "2005-01-04",
+    "end": "2026-06-29",
+    "rows": 5216,
+    "latest_close": 4926.921,
+    "latest_drawdown": -0.16168935490051217,
+    "latest_channel_pos": 0.5497792220859652,
+    "latest_vs_lower_pct": 0.8937479532738501,
+    "latest_vs_mid_pct": 0.05952172294230618,
+    "latest_vs_upper_pct": -0.4072145242739703,
+    "trend_annualized_log_slope": 0.0458066496945182,
+    "channel_width_pct": 2.194659840399147,
+    "max_drawdown": -0.723038445845489,
+    "max_drawdown_date": "2008-11-04",
+    "total_return_price_index": 4.013177736127815,
+    "annualized_return_price_index": 0.07793341167751455
+  },
+  "000905.SH": {
+    "code": "000905.SH",
+    "name": "中证500价格指数",
+    "color": "#dc2626",
+    "start": "2005-01-04",
+    "end": "2026-06-29",
+    "rows": 5216,
+    "latest_close": 8821.0944,
+    "latest_drawdown": -0.23599705682297045,
+    "latest_channel_pos": 0.6139127728593063,
+    "latest_vs_lower_pct": 1.2868089368664282,
+    "latest_vs_mid_pct": 0.16588533718479725,
+    "latest_vs_upper_pct": -0.4055958949832005,
+    "trend_annualized_log_slope": 0.06693240254800004,
+    "channel_width_pct": 2.84722938076243,
+    "max_drawdown": -0.7241715460003557,
+    "max_drawdown_date": "2008-11-04",
+    "total_return_price_index": 7.937940090807121,
+    "annualized_return_price_index": 0.10734352354192178
+  },
+  "common": {
+    "start": "2005-01-04",
+    "end": "2026-06-29",
+    "csi300_total_return": 4.013177736127815,
+    "csi500_total_return": 7.937940090807121,
+    "csi300_latest_drawdown": -0.16168935490051217,
+    "csi500_latest_drawdown": -0.23599705682297045
+  }
+}

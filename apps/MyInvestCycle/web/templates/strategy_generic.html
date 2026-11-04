@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>策略回测</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260701-dual-ma-6" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="strategy-generic">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page strategy-page">
+      <div class="detail-toolbar">
+        <div>
+          <p class="eyebrow" id="genericEyebrow">Strategy</p>
+          <h1 id="genericTitle">策略回测</h1>
+        </div>
+        <a class="back-link" href="/strategies">返回策略频道</a>
+      </div>
+
+      <section class="detail-summary-grid" id="summaryTiles"></section>
+
+      <section class="results-overview strategy-overview" aria-live="polite">
+        <article class="chart-panel result-panel strategy-method-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="说明本策略使用的资产池、调仓规则、收益口径和边界。">策略口径</h2>
+            <span class="panel-kicker">只读回测</span>
+          </div>
+          <p class="strategy-description" id="genericDescription">--</p>
+          <div class="strategy-method-list" id="genericMethodList"></div>
+          <p class="result-note">所有结果均为 ETF 级历史模拟，不选股、不连接券商、不生成真实订单。</p>
+        </article>
+
+        <article class="chart-panel result-panel strategy-current-panel">
+          <div class="panel-heading">
+            <h2 class="help-title" tabindex="0" data-help="显示回测最后一次再平衡信号、目标仓位和主要候选资产评分。">最近一次信号</h2>
+            <span class="panel-kicker" id="genericLatestDate">--</span>
+          </div>
+          <div class="rotation-headline">
+            <div>
+              <span>信号</span>
+              <strong id="genericLatestSignal">--</strong>
+            </div>
+            <div>
+              <span>调仓次数</span>
+              <strong id="genericRebalanceCount">--</strong>
+            </div>
+          </div>
+          <div class="generic-weight-list" id="genericLatestWeights"></div>
+          <p class="result-note" id="genericLatestReason">--</p>
+        </article>
+      </section>
+
+      <article class="chart-panel result-panel wide-analysis-panel strategy-chart-panel">
+        <div class="panel-heading">
+          <h2 class="help-title" tabindex="0" data-help="策略净值与基准净值对比。鼠标悬停可查看日期和值，拖拽可放大，点击还原图表恢复全区间。">回测图示</h2>
+          <div class="panel-actions">
+            <span class="panel-kicker" id="genericRange">--</span>
+            <button class="panel-link panel-button" id="genericStrategyReset" type="button">还原图表</button>
+          </div>
+        </div>
+        <div class="wide-panel-layout">
+          <div class="wide-panel-metrics">
+            <div class="backtest-headline">
+              <div>
+                <span>策略收益</span>
+                <strong id="genericStrategyReturn">--</strong>
+              </div>
+              <div>
+                <span>最大回撤</span>
+                <strong id="genericMaxDrawdown">--</strong>
+              </div>
+            </div>
+            <div class="metric-card-grid">
+              <div>
+                <span>Alpha vs 对照</span>
+                <strong id="genericAlphaEqual">--</strong>
+              </div>
+              <div>
+                <span>年化收益</span>
+                <strong id="genericAnnualizedReturn">--</strong>
+              </div>
+              <div>
+                <span>夏普</span>
+                <strong id="genericSharpe">--</strong>
+              </div>
+              <div>
+                <span>命中率</span>
+                <strong id="genericHitRate">--</strong>
+              </div>
+              <div>
+                <span>样本</span>
+                <strong id="genericSessions">--</strong>
+              </div>
+              <div>
+                <span>平均换手</span>
+                <strong id="genericTurnover">--</strong>
+              </div>
+              <div>
+                <span>最新信号</span>
+                <strong id="genericSignalSummary">--</strong>
+              </div>
+            </div>
+            <div class="backtest-comparison-table" id="genericComparison"></div>
+            <p class="result-note" id="genericSharpeFormula">--</p>
+            <p class="result-note" id="genericConclusion">--</p>
+          </div>
+          <div class="strategy-chart-area">
+            <div class="strategy-range-controls" id="genericRangeControls" hidden></div>
+            <div class="benchmark-toggle-list" id="genericBenchmarkToggles" hidden></div>
+            <div class="chart-box strategy-backtest-chart" id="genericStrategyChart"></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="chart-panel" id="genericParameterPanel" hidden>
+        <div class="panel-heading">
+          <h2 class="help-title" tabindex="0" data-help="全样本参数扫描结果，包含回看筛参，只用于研究参数敏感性，不代表实盘可直接采用。">参数扫描</h2>
+          <span class="panel-kicker" id="genericParameterCount">--</span>
+        </div>
+        <p class="result-note" id="genericParameterNote">--</p>
+        <div class="backtest-comparison-table" id="genericParameterTable"></div>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2 class="help-title" tabindex="0" data-help="按时间倒序展示本策略的历史再平衡记录，含目标仓位、候选评分和调仓原因。">再平衡记录</h2>
+          <span class="panel-kicker" id="genericHistoryCount">--</span>
+        </div>
+        <div class="generic-signal-list" id="genericSignalList"></div>
+      </article>
+
+      <p class="result-note" id="pageError"></p>
+    </main>
+    <div data-myinvest-footer></div>
+    <script src="/static/charts.js?v=20260701-dual-ma-6"></script>
+    <script src="/static/strategy_pages.js?v=20260701-dual-ma-6"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>

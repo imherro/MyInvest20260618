@@ -5,4 +5,15 @@ __pycache__/
 venv/
 temp/
 runtime/
+.env
+.env.*
+!.env.example
+/apps/*/data/**
+!/apps/*/data/**/*.py
+!/apps/*/data/*.py
+/apps/*/research/
+/apps/*/reports/
+/apps/*/logs/
+/apps/*/output/
+/apps/*/book/
 

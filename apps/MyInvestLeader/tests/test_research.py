@@ -1,0 +1,384 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from leader_app import research
+from leader_app.pricing import PricePoint
+from leader_app.service import build_index_payload, latest_report
+from leader_app.upstream import parse_etf_candidates
+
+
+def sample_theme_payload() -> dict:
+    return {
+        "report_id": "mainline_review_sample",
+        "result": {
+            "generated_at": "2026-06-22 15:34:51 CST",
+            "basis_date": "2026-06-18",
+            "nominal_today": "2026-06-22",
+            "completeness": {"basis": "20260618"},
+            "breadth": {"up_ratio": 36.7},
+            "broad_indexes": [{"code": "000300.SH", "name": "沪深300", "r1": 0.2}],
+            "theme_ranking": [
+                {
+                    "theme_id": "hard_tech_semiconductor",
+                    "theme": "硬科技电子/半导体",
+                    "stage": "次主线/强修复",
+                    "lifecycle_state": "accelerating",
+                    "evidence_score": 83.15,
+                    "market_score": 89.05,
+                    "policy_score": 49.66,
+                    "mainline_score_v6": 0.4966,
+                    "sw_score": 95.9,
+                    "ths_score": 96.2,
+                    "etf_score": 96.3,
+                    "limit_count": 12,
+                    "top_sw": "电子",
+                    "top_ths": "半导体、元件",
+                    "top_etf": "588200.SH 嘉实上证科创板芯片ETF、159995.SZ 华夏国证半导体芯片ETF",
+                    "top_policy": "2026-06-03 国家发展改革委 发展智能经济新形态",
+                },
+                {
+                    "theme_id": "building_materials",
+                    "theme": "建材/稳增长修复",
+                    "stage": "弱势/退潮",
+                    "lifecycle_state": "dormant",
+                    "evidence_score": 40,
+                    "market_score": 42,
+                    "policy_score": 10,
+                    "etf_score": 30,
+                    "top_etf": "",
+                },
+            ],
+            "etf_top": [
+                {
+                    "ts_code": "588200.SH",
+                    "name": "嘉实上证科创板芯片ETF",
+                    "r1": 4.48,
+                    "r5": 16.58,
+                    "r20": 15.6,
+                    "amount_rank": 0.99,
+                    "score": 97.0,
+                },
+                {
+                    "ts_code": "159995.SZ",
+                    "name": "华夏国证半导体芯片ETF",
+                    "r1": 4.68,
+                    "r5": 17.38,
+                    "r20": 13.68,
+                    "amount_rank": 0.98,
+                    "score": 96.5,
+                },
+            ],
+        },
+    }
+
+
+def sample_ai_theme_payload() -> dict:
+    return {
+        "report_id": "mainline_review_ai_sample",
+        "result": {
+            "generated_at": "2026-06-22 15:34:51 CST",
+            "basis_date": "2026-06-18",
+            "nominal_today": "2026-06-22",
+            "completeness": {"basis": "20260618"},
+            "breadth": {"up_ratio": 56.7},
+            "broad_indexes": [{"code": "000300.SH", "name": "沪深300", "r1": 0.2, "r5": 1.2, "r20": 3.0}],
+            "theme_ranking": [
+                {
+                    "theme_id": "ai_compute_communication",
+                    "theme": "AI算力/通信",
+                    "stage": "次主线/强修复",
+                    "lifecycle_state": "accelerating",
+                    "evidence_score": 85,
+                    "market_score": 90,
+                    "policy_score": 60,
+                    "mainline_score_v6": 0.6,
+                    "sw_score": 96,
+                    "ths_score": 96,
+                    "etf_score": 95,
+                    "top_sw": "计算机",
+                    "top_ths": "通信设备、通信应用增值服务",
+                    "top_etf": "",
+                    "top_policy": "",
+                }
+            ],
+            "etf_top": [],
+        },
+    }
+
+
+def test_parse_etf_candidates() -> None:
+    result = parse_etf_candidates("588200.SH 嘉实芯片ETF、159995.SZ 半导体ETF")
+
+    assert [row["code"] for row in result] == ["588200.SH", "159995.SZ"]
+    assert result[0]["name"] == "嘉实芯片ETF"
+
+
+def test_build_report_and_shadow_contract(monkeypatch) -> None:
+    monkeypatch.setattr(
+        research,
+        "fetch_tushare_fund_prices",
+        lambda codes, basis_date: {
+            code: PricePoint(code=code, close=1.0, pct_chg=1.0, source="test", r5=5.0, r20=10.0, amount_rank=0.9)
+            for code in codes
+        },
+    )
+    monkeypatch.setattr(research, "_stock_universe", lambda basis_date: (None, ["stock data skipped"]))
+
+    _report_id, payload, markdown = research.build_report(theme_payload=sample_theme_payload())
+
+    assert payload["schema_version"] == "leader_research.v1"
+    assert payload["basis_date"] == "2026-06-18"
+    assert payload["themes"][0]["leader_grade"] in {"A", "B"}
+    assert payload["themes"][0]["etf_leaders"][0]["code"] == "588200.SH"
+    assert "stock data skipped" in payload["data_gaps"]
+    assert "不含真实持仓、资金金额、股数或交易指令" in markdown
+
+    shadow = payload["shadow_contract"]
+    assert shadow["schema_version"] == "leader_shadow_input.v1"
+    assert shadow["constraints"]["read_only"] is True
+    assert shadow["constraints"]["ratio_only"] is True
+    assert shadow["constraints"]["contains_trade_orders"] is False
+    assert shadow["leader_signals"][0]["etf_candidates"][0]["code"] == "588200.SH"
+    assert shadow["leader_signals"][0]["stock_candidates"] == []
+
+
+def test_strategic_leader_universe_promotes_known_leaders(monkeypatch) -> None:
+    import pandas as pd
+
+    rows = pd.DataFrame(
+        [
+            {
+                "ts_code": "688981.SH",
+                "name": "中芯国际",
+                "industry": "半导体",
+                "market": "科创板",
+                "pct_chg": 0.5,
+                "turnover_rate": 2.0,
+                "amount": 500000.0,
+                "large_net": 100.0,
+                "is_limit_up": False,
+                "amount_rank": 0.75,
+                "flow_rank": 0.7,
+                "mv_rank": 0.98,
+            },
+            {
+                "ts_code": "300308.SZ",
+                "name": "中际旭创",
+                "industry": "通信设备",
+                "market": "创业板",
+                "pct_chg": 1.2,
+                "turnover_rate": 3.5,
+                "amount": 800000.0,
+                "large_net": 200.0,
+                "is_limit_up": False,
+                "amount_rank": 0.9,
+                "flow_rank": 0.82,
+                "mv_rank": 0.95,
+            },
+            {
+                "ts_code": "300001.SZ",
+                "name": "电子涨停样本",
+                "industry": "半导体",
+                "market": "创业板",
+                "pct_chg": 20.0,
+                "turnover_rate": 30.0,
+                "amount": 900000.0,
+                "large_net": 300.0,
+                "is_limit_up": True,
+                "amount_rank": 1.0,
+                "flow_rank": 1.0,
+                "mv_rank": 0.5,
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        research,
+        "fetch_tushare_fund_prices",
+        lambda codes, basis_date: {
+            code: PricePoint(code=code, close=1.0, pct_chg=1.0, source="test", r5=5.0, r20=10.0, amount_rank=0.9)
+            for code in codes
+        },
+    )
+    monkeypatch.setattr(research, "_stock_universe", lambda basis_date: (rows, []))
+
+    _report_id, payload, _markdown = research.build_report(theme_payload=sample_theme_payload())
+    semiconductor_codes = [row["code"] for row in payload["themes"][0]["stock_leaders"]]
+    graph = payload["themes"][0]["competition_graph"]
+
+    assert "688981.SH" in semiconductor_codes
+    assert graph["current_l1"]
+    assert sum(1 for row in graph["leaders"] if row["tier"] == "L1") == 1
+    assert graph["competition_intensity"] >= 0
+    assert "swap_frequency" in payload["competition_summary"]
+    assert payload["competition_summary"]["theme_with_l1_count"] >= 1
+    smic = payload["themes"][0]["stock_leaders"][semiconductor_codes.index("688981.SH")]
+    assert smic["xueqiu_url"] == "https://xueqiu.com/S/SH688981"
+    assert smic["binding_source"] == "候选种子+动态证据确认"
+    assert smic["leader_tier"] == "证据确认龙头"
+    assert smic["evidence_count"] >= 3
+    assert smic["hard_evidence_count"] >= 2
+    assert smic["score_model"] == "factorized_scoring_engine.v1"
+    assert smic["regime"] == "BULL_WEAK"
+    assert smic["regime_multiplier"] == 1.0
+    assert smic["regime_reason"]
+    assert smic["stock_lifecycle_state"] in {"Accumulation", "Breakout", "Expansion", "Distribution", "Decline"}
+    assert smic["lifecycle_multiplier"] is not None
+    assert smic["lifecycle_reason"]
+    assert smic["competition_tier"] in {"L1", "L2", "L3", "OUT"}
+    assert smic["ulls"] is not None
+    assert smic["competition_dominance"] is not None
+    assert smic["competition_role"] == "explanatory_normalizer"
+    assert smic["volume_share_in_theme"] is not None
+    assert smic["fund_flow_share"] is not None
+    assert {row["name"] for row in smic["factor_breakdown"]} == {
+        "theme_strength",
+        "volume_activity",
+        "fund_flow",
+        "cap_quality",
+    }
+    assert payload["themes"][0]["stock_leaders"][0]["code"] == "688981.SH"
+    assert payload["shadow_contract"]["leader_signals"][0]["competition_graph"]["current_l1"]
+    assert payload["shadow_contract"]["leader_signals"][0]["stock_candidates"][0]["competition_tier"]
+    assert payload["shadow_contract"]["leader_signals"][0]["stock_candidates"][0]["ulls"] is not None
+    assert payload["shadow_contract"]["leader_signals"][0]["stock_candidates"][0]["xueqiu_url"].startswith("https://xueqiu.com/S/")
+    assert "[中芯国际](https://xueqiu.com/S/SH688981)" in _markdown
+
+
+def test_ai_communication_excludes_generic_financial_software_candidate(monkeypatch) -> None:
+    import pandas as pd
+
+    rows = pd.DataFrame(
+        [
+            {
+                "ts_code": "300033.SZ",
+                "name": "同花顺",
+                "industry": "软件服务",
+                "market": "创业板",
+                "pct_chg": 14.9,
+                "turnover_rate": 12.0,
+                "amount": 900000.0,
+                "large_net": 300.0,
+                "is_limit_up": False,
+                "amount_rank": 0.99,
+                "flow_rank": 0.99,
+                "mv_rank": 0.98,
+            },
+            {
+                "ts_code": "300308.SZ",
+                "name": "中际旭创",
+                "industry": "通信设备",
+                "market": "创业板",
+                "pct_chg": 1.2,
+                "turnover_rate": 3.5,
+                "amount": 800000.0,
+                "large_net": 200.0,
+                "is_limit_up": False,
+                "amount_rank": 0.9,
+                "flow_rank": 0.82,
+                "mv_rank": 0.95,
+            },
+        ]
+    )
+    monkeypatch.setattr(research, "fetch_tushare_fund_prices", lambda codes, basis_date: {})
+    monkeypatch.setattr(research, "_stock_universe", lambda basis_date: (rows, []))
+
+    _report_id, payload, _markdown = research.build_report(theme_payload=sample_ai_theme_payload())
+    ai_theme = payload["themes"][0]
+    codes = [row["code"] for row in ai_theme["stock_leaders"]]
+
+    assert "300033.SZ" not in codes
+    assert "300308.SZ" in codes
+    assert ai_theme["competition_graph"]["current_l1"] == "300308.SZ"
+
+
+def test_seed_leader_is_protected_from_top8_truncation(monkeypatch) -> None:
+    import pandas as pd
+
+    dynamic_rows = [
+        {
+            "ts_code": f"30090{index}.SZ",
+            "name": f"机器人样本{index}",
+            "industry": "机械基件",
+            "market": "创业板",
+            "pct_chg": 6.0 + index / 10,
+            "turnover_rate": 12.0,
+            "amount": 1_000_000.0 + index,
+            "large_net": 10_000.0 + index,
+            "is_limit_up": False,
+            "amount_rank": 0.98,
+            "flow_rank": 0.96,
+            "mv_rank": 0.92,
+        }
+        for index in range(9)
+    ]
+    green_harmonic = {
+        "ts_code": "688017.SH",
+        "name": "绿的谐波",
+        "industry": "机械基件",
+        "market": "科创板",
+        "pct_chg": -2.0,
+        "turnover_rate": 2.0,
+        "amount": 100_000.0,
+        "large_net": -100.0,
+        "is_limit_up": False,
+        "amount_rank": 0.20,
+        "flow_rank": 0.20,
+        "mv_rank": 0.50,
+    }
+    rows = pd.DataFrame([*dynamic_rows, green_harmonic])
+
+    def fake_score_breakdown(row, universe_records, market_context):
+        code = str(row.get("ts_code") or "")
+        score = 95.0 - int(code[5]) if code.startswith("30090") else 35.0
+        return {
+            "model": "test_model",
+            "score": score,
+            "raw_factor_score": score,
+            "regime": {"regime": "BULL_WEAK", "multiplier": 1.0, "reason": ["test"]},
+            "lifecycle": {"state": "Accumulation", "confidence": 0.7, "stage_score_multiplier": 1.0, "reason": ["test"]},
+            "factors": [],
+        }
+
+    monkeypatch.setattr(research, "_stock_score_breakdown", fake_score_breakdown)
+
+    leaders = research._build_stock_leaders(
+        {
+            "theme": "高端制造/机器人/军工",
+            "basis_date": "2026-07-03",
+            "top_sw": "",
+            "top_ths": "",
+        },
+        rows,
+        {"breadth": {"up_ratio": 50.0}},
+    )
+    codes = [row["code"] for row in leaders]
+    green = next(row for row in leaders if row["code"] == "688017.SH")
+
+    assert codes[:8] == [f"30090{index}.SZ" for index in range(8)]
+    assert "688017.SH" in codes
+    assert green["candidate_recall_source"] == "种子保底"
+    assert green["seed_protected_recall"] is True
+    assert green["leader_claim"] == "机器人减速器龙头"
+
+
+def test_report_service_uses_safe_latest_file(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        research,
+        "fetch_tushare_fund_prices",
+        lambda codes, basis_date: {
+            code: PricePoint(code=code, close=1.0, pct_chg=1.0, source="test", r5=5.0, r20=10.0, amount_rank=0.9)
+            for code in codes
+        },
+    )
+    monkeypatch.setattr(research, "_stock_universe", lambda basis_date: (None, []))
+    report_id, payload, markdown = research.build_report(theme_payload=sample_theme_payload())
+    research.write_report(report_id, payload, markdown, report_dir=tmp_path)
+
+    loaded_id, loaded_payload, loaded_markdown = latest_report(report_dir=tmp_path)
+    index = build_index_payload(loaded_id, loaded_payload, loaded_markdown)
+
+    assert loaded_id == report_id
+    assert index["report"]["basis_date"] == "2026-06-18"
+    assert index["metrics"]["etf_candidate_count"] >= 1
+    assert index["shadow_contract"]["constraints"]["contains_cash_amounts"] is False

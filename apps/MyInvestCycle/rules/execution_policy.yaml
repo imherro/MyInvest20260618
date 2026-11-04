@@ -1,0 +1,27 @@
+risk:
+  block_new_exposure_threshold: 0.60
+  min_weight_change: 0.01
+
+bull:
+  execution_mode: expand_or_rebalance
+  reference_exposure: 1.00
+  allow: [rebalance_strategy, open_new_position, increase_exposure]
+  forbid: [increase_leverage]
+
+range:
+  execution_mode: rebalance_strategy
+  reference_exposure: 0.60
+  allow: [rebalance_strategy, trim_overweight]
+  forbid: [open_new_position, increase_leverage]
+
+bear:
+  execution_mode: defensive_only
+  reference_exposure: 0.20
+  allow: [hedge, reduce_exposure, rebalance_strategy]
+  forbid: [open_new_position, increase_exposure, increase_leverage]
+
+transition:
+  execution_mode: reduce_risk
+  reference_exposure: 0.30
+  allow: [reduce_exposure, rebalance_strategy]
+  forbid: [open_new_position, increase_exposure, increase_leverage]

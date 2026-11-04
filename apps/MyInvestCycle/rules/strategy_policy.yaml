@@ -1,0 +1,33 @@
+risk:
+  high_risk_threshold: 0.60
+  high_risk_disabled: [trend, breakout]
+
+strategies:
+  trend:
+    risk_penalty: 0.15
+  breakout:
+    risk_penalty: 0.30
+  mean_reversion:
+    risk_penalty: 0.05
+  low_vol:
+    risk_penalty: 0.02
+  defensive:
+    risk_penalty: 0.00
+  cash:
+    risk_penalty: 0.00
+
+bull:
+  enabled: [trend, breakout]
+  disabled: [mean_reversion, defensive, cash, low_vol]
+
+range:
+  enabled: [mean_reversion, trend, low_vol]
+  disabled: [breakout]
+
+bear:
+  enabled: [defensive, cash]
+  disabled: [trend, breakout, mean_reversion, low_vol]
+
+transition:
+  enabled: [defensive]
+  disabled: [trend, breakout, mean_reversion, low_vol]

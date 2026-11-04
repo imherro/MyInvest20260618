@@ -1,0 +1,124 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from app.api_catalog import build_api_catalog
+from app.home_page import render_home_page
+from app.index_api import build_index_payload, get_index_payload
+
+
+class IndexApiTests(unittest.TestCase):
+    def sample_summary(self) -> dict:
+        return {
+            "generated_at": "2026-06-18T12:14:56+08:00",
+            "shadow": {
+                "basis_date": "2026-06-17",
+                "market_regime": "结构性偏强但分歧较大",
+                "nav": 1.0,
+                "risk_weight_pct": 36.0,
+                "defensive_weight_pct": 64.0,
+                "sleeve_summary": {
+                    "core": 18.0,
+                    "mainline": 15.0012,
+                    "thematic": 2.9988,
+                    "defensive": 64.0,
+                },
+                "allocations": [
+                    {
+                        "code": "588170.SH",
+                        "name": "半导体材料设备ETF",
+                        "sleeve": "mainline",
+                        "target_weight_pct": 6.54,
+                    }
+                ],
+            },
+            "real": {
+                "account_mask": "masked",
+                "nav_index": 1.0,
+                "risk_weight_pct": 43.3176,
+                "defensive_proxy_weight_pct": 56.6824,
+                "core_proxy_weight_pct": 5.6805,
+                "shadow_exact_codes_weight_pct": 0.0,
+                "positions_count": 2,
+                "positions": [
+                    {"code": "511360.SH", "name": "短融ETF", "weight_pct": 55.93},
+                    {"code": "159201.SZ", "name": "自由现金流ETF", "weight_pct": 4.26},
+                ],
+            },
+            "diff": {
+                "risk_over_shadow_pp": 7.3176,
+                "defensive_vs_shadow_pp": -7.3176,
+                "core_proxy_vs_shadow_core_pp": -12.3195,
+                "shadow_exact_codes_gap_pp": -18.0,
+            },
+            "reduction_buckets": [{"bucket": "券商/证券保险", "weight_pct": 6.5}],
+        }
+
+    def test_build_index_payload_contains_home_sections(self) -> None:
+        payload = build_index_payload(self.sample_summary())
+
+        self.assertEqual(payload["page"]["title"], "MyInvestPosition")
+        self.assertEqual(payload["page"]["status"], "over_budget")
+        self.assertEqual(payload["hero"]["risk_gap_pp"], 7.32)
+        self.assertEqual(payload["cards"][1]["id"], "real_risk")
+        self.assertEqual(payload["timestamp"], "2026-06-18T12:14:56+08:00")
+        self.assertGreater(len(payload["actions"]), 0)
+        self.assertEqual(payload["decision_set"]["actions"], payload["actions"])
+        self.assertIn("priority", payload["actions"][0])
+        self.assertIn("confidence", payload["actions"][0])
+        self.assertIn("source", payload["actions"][0])
+        self.assertIn("liquidity", payload["actions"][0])
+        self.assertIn("score_breakdown", payload["actions"][0])
+        self.assertIn("decision_adjustment", payload)
+        self.assertEqual(payload["sleeve_deviations"][0]["id"], "core")
+        self.assertEqual(payload["sleeve_deviations"][1]["gap_pp"], -15.0)
+        self.assertEqual(payload["sleeve_deviations"][4]["id"], "non_model_satellite")
+        self.assertEqual(payload["real_top_positions"]["total_count"], 2)
+        self.assertFalse(payload["privacy"]["contains_amounts"])
+        self.assertFalse(payload["privacy"]["private_data_read"])
+
+    def test_get_index_payload_loads_public_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "summary.json"
+            path.write_text(json.dumps(self.sample_summary(), ensure_ascii=False), encoding="utf-8")
+
+            payload = get_index_payload(path)
+
+        self.assertEqual(payload["comparison"]["defensive"]["gap_pp"], -7.32)
+        self.assertEqual(payload["shadow_allocations"][0]["code"], "588170.SH")
+
+    def test_render_home_page_returns_html_dashboard(self) -> None:
+        payload = build_index_payload(self.sample_summary())
+
+        html = render_home_page(payload)
+
+        self.assertIn("<!doctype html>", html)
+        self.assertIn("影子账户与 QMT 实盘净值对照", html)
+        self.assertIn("仓位偏差核对", html)
+        self.assertIn("非模型卫星仓", html)
+        self.assertIn("实盘前十大持仓", html)
+        self.assertIn("511360.SH", html)
+        self.assertIn('<div data-myinvest-header></div>', html)
+        self.assertIn('<div data-myinvest-footer></div>', html)
+        self.assertIn('<script src="https://invest.okbbc.com/header.js" defer></script>', html)
+        self.assertIn('<script src="https://invest.okbbc.com/footer.js" defer></script>', html)
+        self.assertIn('<header class="dashboard-header">', html)
+
+    def test_render_home_page_includes_api_catalog_summary(self) -> None:
+        payload = build_index_payload(self.sample_summary())
+
+        html = render_home_page(payload, build_api_catalog())
+
+        self.assertIn("接口说明", html)
+        self.assertIn("公开只读接口共", html)
+        self.assertIn("推荐入口", html)
+        self.assertIn("功能分组", html)
+        self.assertIn("安全边界", html)
+        self.assertIn("/api/index", html)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>V2 验证</title>
+    <link rel="stylesheet" href="/static/style.css?v=20260708-v2-validation-1" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  </head>
+  <body data-page="v2-validation">
+    <div data-myinvest-header></div>
+    <main class="shell detail-page">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">V2 Validation</p>
+          <h1>V2 配置意图验证</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="refresh-button" id="refreshButton" type="button">刷新</button>
+          <a class="back-link" href="/v2">返回 V2 总览</a>
+        </div>
+      </header>
+
+      <nav class="channel-nav-section" aria-label="频道导航">
+        <a href="/">
+          <span>Macro</span>
+          <strong>宏观总览</strong>
+        </a>
+        <a href="/v2">
+          <span>V2</span>
+          <strong>研究总览</strong>
+        </a>
+        <a class="is-active" href="/v2-validation">
+          <span>Validation</span>
+          <strong>V2 验证</strong>
+        </a>
+        <a href="/strategies">
+          <span>Strategies</span>
+          <strong>策略回测</strong>
+        </a>
+        <a href="/api-docs">
+          <span>API</span>
+          <strong>接口说明</strong>
+        </a>
+      </nav>
+
+      <section class="v2-hero chart-panel">
+        <div>
+          <span>Walk-forward / T+1</span>
+          <h2 id="validationHeadline">--</h2>
+        </div>
+        <div class="v2-hero-metrics">
+          <div>
+            <span>样本区间</span>
+            <strong id="validationWindow">--</strong>
+          </div>
+          <div>
+            <span>年化收益</span>
+            <strong id="v2Annualized">--</strong>
+          </div>
+          <div>
+            <span>最大回撤</span>
+            <strong id="v2Drawdown">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <article class="chart-panel result-panel wide-analysis-panel">
+        <div class="panel-heading">
+          <h2>净值对比</h2>
+          <span class="panel-kicker">V2 / 510300 / 510500 / S1.1 / M2.1</span>
+        </div>
+        <div class="chart-box v2-validation-chart" id="v2ValidationChart"></div>
+        <p class="result-note" id="validationNote">--</p>
+      </article>
+
+      <section class="v2-dashboard-grid">
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>V2 结果</h2>
+            <span class="panel-kicker">Intent Proxy</span>
+          </div>
+          <div class="v2-metric-grid">
+            <div><span>总收益</span><strong id="v2TotalReturn">--</strong></div>
+            <div><span>夏普</span><strong id="v2Sharpe">--</strong></div>
+            <div><span>Calmar</span><strong id="v2Calmar">--</strong></div>
+            <div><span>平均暴露</span><strong id="v2AvgExposure">--</strong></div>
+          </div>
+        </article>
+
+        <article class="chart-panel v2-card">
+          <div class="panel-heading">
+            <h2>验证边界</h2>
+            <span class="panel-kicker">Safety</span>
+          </div>
+          <div class="v2-list" id="validationChecks"></div>
+        </article>
+      </section>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>基准对比</h2>
+          <span class="panel-kicker">Benchmark Comparison</span>
+        </div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>基准</th>
+                <th>基准总收益</th>
+                <th>基准年化</th>
+                <th>基准最大回撤</th>
+                <th>V2 超额收益</th>
+                <th>命中率</th>
+              </tr>
+            </thead>
+            <tbody id="benchmarkRows"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>Policy Sensitivity</h2>
+          <span class="panel-kicker">V2.5.2</span>
+        </div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>方案</th>
+                <th>总收益</th>
+                <th>年化</th>
+                <th>最大回撤</th>
+                <th>Calmar</th>
+                <th>平均暴露</th>
+                <th>Alpha vs 510500</th>
+              </tr>
+            </thead>
+            <tbody id="policyRows"></tbody>
+          </table>
+        </div>
+        <p class="result-note" id="policyBestNote">--</p>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>历史覆盖审计</h2>
+          <span class="panel-kicker">Coverage</span>
+        </div>
+        <div class="v2-list" id="coverageRows"></div>
+        <p class="result-note" id="coverageNote">--</p>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>完整周期验证</h2>
+          <span class="panel-kicker">V2.6.1</span>
+        </div>
+        <div class="v2-list" id="fullCycleSummary"></div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>对象</th>
+                <th>总收益</th>
+                <th>年化</th>
+                <th>最大回撤</th>
+                <th>夏普</th>
+                <th>Calmar</th>
+                <th>平均暴露</th>
+              </tr>
+            </thead>
+            <tbody id="fullCycleRows"></tbody>
+          </table>
+        </div>
+        <p class="result-note" id="fullCycleNote">--</p>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>历史数据扩展</h2>
+          <span class="panel-kicker">V2.6.2</span>
+        </div>
+        <div class="v2-list" id="historyExpansionSummary"></div>
+        <p class="result-note" id="historyExpansionNote">--</p>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>完整周期 Walk-forward 回测</h2>
+          <span class="panel-kicker">V2.6.3</span>
+        </div>
+        <div class="v2-list" id="fullCycleBacktestSummary"></div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>对象</th>
+                <th>覆盖</th>
+                <th>总收益</th>
+                <th>年化</th>
+                <th>最大回撤</th>
+                <th>夏普</th>
+                <th>Calmar</th>
+                <th>平均暴露</th>
+                <th>累计换手</th>
+              </tr>
+            </thead>
+            <tbody id="fullCycleBacktestRows"></tbody>
+          </table>
+        </div>
+        <p class="result-note" id="fullCycleBacktestNote">--</p>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>完整周期阶段归因</h2>
+          <span class="panel-kicker">V2.6.3</span>
+        </div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>阶段</th>
+                <th>样本</th>
+                <th>V2</th>
+                <th>V2 baseline</th>
+                <th>510300</th>
+                <th>510500</th>
+                <th>50/50</th>
+              </tr>
+            </thead>
+            <tbody id="fullCyclePhaseRows"></tbody>
+          </table>
+        </div>
+        <div class="v2-list" id="structuralBullContribution"></div>
+      </article>
+
+      <article class="chart-panel">
+        <div class="panel-heading">
+          <h2>状态归因</h2>
+          <span class="panel-kicker">Allocation Structural State</span>
+        </div>
+        <div class="table-wrap">
+          <table class="v2-table">
+            <thead>
+              <tr>
+                <th>配置细分状态</th>
+                <th>样本</th>
+                <th>V2 收益</th>
+                <th>510500 收益</th>
+                <th>Alpha</th>
+                <th>平均暴露</th>
+              </tr>
+            </thead>
+            <tbody id="stateRows"></tbody>
+          </table>
+        </div>
+      </article>
+    </main>
+    <div data-myinvest-footer></div>
+
+    <script src="/static/v2_validation.js?v=20260708-v2-validation-1"></script>
+    <script src="https://invest.okbbc.com/header.js" data-target="[data-myinvest-header]"></script>
+    <script src="https://invest.okbbc.com/footer.js" data-target="[data-myinvest-footer]"></script>
+  </body>
+</html>
