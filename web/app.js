@@ -807,7 +807,7 @@ async function loadAll({ forceRefresh = false, quiet = false } = {}) {
   }
   let completed = false;
   try {
-    const response = await fetch(sourceRequestUrl("/api/sources", forceRefresh), { cache: "no-store" });
+    const response = await fetch(sourceRequestUrl("/api/sources", forceRefresh), { cache: "no-store", signal: AbortSignal.timeout(25000) });
     const payload = await response.json();
     applySources(payload);
     writeLocalSnapshot(payload);
@@ -827,7 +827,7 @@ async function loadOne(sourceId, button, { forceRefresh = true } = {}) {
   markRefreshing([sourceId], true);
   let completed = false;
   try {
-    const response = await fetch(sourceRequestUrl(`/api/sources/${sourceId}`, forceRefresh), { cache: "no-store" });
+    const response = await fetch(sourceRequestUrl(`/api/sources/${sourceId}`, forceRefresh), { cache: "no-store", signal: AbortSignal.timeout(25000) });
     const payload = await response.json();
     if (payload.source) state.set(payload.source.id, payload.source);
     render();

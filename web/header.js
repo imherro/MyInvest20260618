@@ -299,6 +299,7 @@
     try {
       const response = await fetch(`${apiUrl}${apiUrl.includes("?") ? "&" : "?"}t=${Date.now()}`, {
         cache: "no-store",
+        signal: AbortSignal.timeout(10000),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();

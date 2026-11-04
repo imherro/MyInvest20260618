@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import copy
+import gzip
+import hashlib
 import json
 import mimetypes
 import os
@@ -693,6 +695,8 @@ def build_api_index_payload() -> dict[str, Any]:
 
 class WebHubHandler(BaseHTTPRequestHandler):
     server_version = "MyInvestWebHub/1.0"
+    protocol_version = "HTTP/1.1"
+    timeout = 30
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -745,12 +749,44 @@ class WebHubHandler(BaseHTTPRequestHandler):
 
         content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
         payload = target.read_bytes()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(payload)))
-        self.send_header("Cache-Control", f"private, max-age={STATIC_CACHE_SECONDS}")
+        self.write_body(payload, content_type, cache_control=f"public, max-age={STATIC_CACHE_SECONDS}", conditional=True)
+
+    def write_body(self, body: bytes, content_type: str, *, status: int = 200,
+                   cache_control: str = "no-store", conditional: bool = False,
+                   cors: bool = False) -> None:
+        # Compress before the tunnel, not only at the Cloudflare edge.
+        encodings = {}
+        for item in self.headers.get("Accept-Encoding", "").lower().split(","):
+            name, *params = item.strip().split(";")
+            quality = 1.0
+            for param in params:
+                if param.strip().startswith("q="):
+                    try:
+                        quality = float(param.strip()[2:])
+                    except ValueError:
+                        quality = 0.0
+            encodings[name] = quality
+        compressed = len(body) >= 512 and encodings.get("gzip", encodings.get("*", 0)) > 0
+        if compressed:
+            body = gzip.compress(body, compresslevel=6, mtime=0)
+        etag = '"' + hashlib.sha256(body).hexdigest() + '"'
+        validators = [value.strip().removeprefix("W/") for value in self.headers.get("If-None-Match", "").split(",")]
+        not_modified = conditional and (etag in validators or "*" in validators)
+        self.send_response(HTTPStatus.NOT_MODIFIED if not_modified else status)
+        self.send_header("Cache-Control", cache_control)
+        self.send_header("Vary", "Accept-Encoding")
+        if conditional:
+            self.send_header("ETag", etag)
+        if cors:
+            self.send_header("Access-Control-Allow-Origin", "*")
+        if not not_modified:
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            if compressed:
+                self.send_header("Content-Encoding", "gzip")
         self.end_headers()
-        self.wfile.write(payload)
+        if not not_modified:
+            self.wfile.write(body)
 
     def write_json(
         self,
@@ -760,14 +796,7 @@ class WebHubHandler(BaseHTTPRequestHandler):
         cors: bool = False,
     ) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        if cors:
-            self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(body)
+        self.write_body(body, "application/json; charset=utf-8", status=status, cors=cors)
 
     def log_message(self, format: str, *args: Any) -> None:
         print("%s - - [%s] %s" % (self.address_string(), self.log_date_time_string(), format % args))

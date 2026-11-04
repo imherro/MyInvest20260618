@@ -33,6 +33,25 @@ http://127.0.0.1:8888/
 python -m unittest discover -s tests -q
 ```
 
+## HTTP transport
+
+The origin supports HTTP/1.1 connection reuse, negotiated gzip compression,
+and ETag/304 validation for public static files (60-second freshness).
+JSON APIs remain `no-store`; this does not change the 10-minute data cache.
+Browser data requests stop after 25 seconds; shared navigation requests stop
+after 10 seconds and retain the existing fallback or cached links.
+
+For tunnel diagnostics, measure complete response transfer, not only HTTP 200.
+Compare `/healthz`, `/`, and `/header.js` locally and on the public hostname.
+Cloudflared readiness at `http://127.0.0.1:20241/ready` confirms edge connections,
+not origin availability or client-to-edge performance.
+
+2026-11-04: local homepage completed in about 22 ms. Public requests exhibited
+intermittent connection timeouts and incomplete body transfer. Chrome also
+recorded long connection/body delays despite sub-second Cloudflare origin timing.
+Transport improvements are deployed, but public-network stability is not yet
+confirmed. Do not treat a successful single request as full recovery.
+
 ## Web 服务巡检
 
 本项目提供巡检脚本，会检查首页和子系统本地 Web 服务；如果端口没有响应，会按已知启动命令拉起服务。
