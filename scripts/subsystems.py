@@ -1,4 +1,4 @@
-"""List/check legacy services or explicitly launch an isolated development service."""
+"""List/check production services or launch an isolated source-only development copy."""
 from __future__ import annotations
 
 import argparse
@@ -7,8 +7,11 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from urllib.request import urlopen
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from unified.registry import module_url
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,14 +43,21 @@ def main():
                 parser.error("Port is occupied; no process will be stopped")
         env = os.environ.copy()
         env.pop("PYTHONPATH", None)
-        print(f"Development only: http://127.0.0.1:{args.port}/", flush=True)
-        return subprocess.call(command, cwd=ROOT / "apps" / system["directory"], env=env)
+        from source_copy import copy_source
+        from test_subsystems import isolated_environment
+        base = ROOT / "temp/monorepo-dev"
+        base.mkdir(parents=True, exist_ok=True)
+        destination = Path(tempfile.mkdtemp(prefix=system["id"] + "-", dir=base))
+        copy_source(system["directory"], destination)
+        print(f"Development copy: {destination}; http://127.0.0.1:{args.port}/", flush=True)
+        return subprocess.call(command, cwd=destination, env=isolated_environment(destination))
     failed = False
     for system in selected:
-        row = {**system, "source": f"apps/{system['directory']}", "production": "legacy-siblings (unchanged)"}
+        row = {**system, "source": f"apps/{system['directory']}", "production": "unified IPC; original runtime data", "url": module_url(system["id"])}
+        row["legacy_port"] = row.pop("port")
         if args.action == "check":
             try:
-                with urlopen(f"http://127.0.0.1:{system['port']}{system['health']}", timeout=3) as response:
+                with urlopen(f"http://127.0.0.1:8888{module_url(system['id'], system['health'])}", timeout=60) as response:
                     row["http_status"] = response.status
             except Exception as exc:
                 row["error"] = str(exc)

@@ -3,7 +3,9 @@
 ## 统一源码仓库
 
 13 个子系统源码已汇集到 `apps/`，清单见 `subsystems.json`。
-旧仓库、运行数据、现有进程和自动化工作目录保持不变；此次仅合并源码，未切换生产部署。
+已升级为统一应用：一个 `8888` 入口，13 个模块通过 `/market/`、`/theme/` 等子路径访问，不再各自监听端口。
+原数据和 `.env` 留在原目录，模块通过明确的数据绑定继续使用；旧仓库保留用于历史和回退。
+启动、测试、巡检和回退见 [统一应用说明](docs/migration/unified-application.md)。
 迁移范围、来源提交、运行与测试方式见 [迁移说明](docs/migration/README.md)。
 
 ```powershell
@@ -12,20 +14,20 @@ python scripts/test_subsystems.py --data-root C:\Users\kunpeng\Documents --timeo
 ```
 
 测试在 `temp/monorepo-tests/` 中的独立副本运行。`--data-root` 仅用于复制已登记的历史报告测试输入，不会在旧库中运行测试或写入数据。
-日常修改和提交从本仓库统一进行；旧库暂时保留历史和现有部署，不自动接收新代码。
+日常修改和提交从本仓库统一进行；旧库保留历史和运行数据，不自动接收新代码。不要直接在挂接生产数据的 `apps/` 目录运行测试。
 
 一个本地 Web 总览页，用于汇聚多个研究频道信息：
 
-- 市场：`https://market.okbbc.com/api/index`
-- 主线：`https://theme.okbbc.com/api/index`
-- 影子：`https://shadow.okbbc.com/api/index`
-- 龙头：`https://leader.okbbc.com/api/index`
-- 个股：`https://stock.okbbc.com/api/index`
-- 操作：`https://position.okbbc.com/api/index`
+- 市场：`/api/market/index`
+- 主线：`/api/theme/index`
+- 影子：`/api/shadow/index`
+- 龙头：`/api/leader/index`
+- 个股：`/api/stock/index`
+- 操作：`/api/position/index`
 
-页面顶部的频道首页入口指向频道根地址，例如 `https://market.okbbc.com/`。后台数据刷新仍然使用对应的 `/api/index` 接口。
+页面顶部的频道首页入口指向统一站点子路径，例如 `https://invest.okbbc.com/market/`。后台数据刷新通过本地统一入口读取对应的 `/api/<模块>/index`，不再绕行子系统公网域名。
 
-数据接口有 10 分钟本地缓存。页面刚打开时会立即显示四个频道入口；如果浏览器本地有上次数据，会先显示旧数据，再后台请求服务端缓存。点击全部刷新或单项刷新时会同时清除浏览器缓存和服务端缓存，再重新请求远程接口。
+数据接口有 10 分钟本地缓存。页面刚打开时立即显示频道入口；如果浏览器本地有上次数据，会先显示旧数据，再后台请求服务端缓存。点击全部刷新或单项刷新时会同时清除浏览器缓存和服务端缓存，再重新请求对应模块接口。
 
 ## 启动
 
@@ -39,7 +41,7 @@ python server.py
 http://127.0.0.1:8888/
 ```
 
-页面支持全部刷新和单项刷新。远程接口异常时，对应入口会显示错误状态，其他入口不受影响。
+页面支持全部刷新和单项刷新。模块接口异常时，对应入口会显示错误状态，其他入口不受影响。
 
 ## 本地检查
 
@@ -66,9 +68,15 @@ recorded long connection/body delays despite sub-second Cloudflare origin timing
 Transport improvements are deployed, but public-network stability is not yet
 confirmed. Do not treat a successful single request as full recovery.
 
+Unified deployment acceptance: 29/29 local checks and 29/29 public checks via a
+diagnostic real-edge DNS override passed. Normal fake-IP/proxy routing still
+showed timeouts. Cloudflare chunked request handling and stale navigation asset
+versions were fixed. See [acceptance record](docs/migration/unified-validation.json)
+for test counts, evidence and the distinction between application and network health.
+
 ## Web 服务巡检
 
-本项目提供巡检脚本，会检查首页和子系统本地 Web 服务；如果端口没有响应，会按已知启动命令拉起服务。
+巡检默认管理统一主服务及其 13 个 IPC 模块，不再拉起旧的 13 个端口；逆向、测试仍按原来的独立服务配置检查。仅操作本次整合范围可加 `-Only home`。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1

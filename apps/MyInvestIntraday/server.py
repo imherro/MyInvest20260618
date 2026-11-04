@@ -24,14 +24,14 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
 WEB_ROOT = ROOT / "web"
-ENV_PATH = ROOT / ".env"
+ENV_PATH = Path(os.environ.get("MYINVEST_ENV_FILE", ROOT / ".env"))
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8022
 REQUEST_TIMEOUT_SECONDS = 6
 SOCKET_TIMEOUT_SECONDS = 4
 READ_CHUNK_BYTES = 64 * 1024
 AGGREGATE_TIMEOUT_SECONDS = REQUEST_TIMEOUT_SECONDS + 2
-MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 CACHE_TTL_SECONDS = 60
 PUBLIC_HOME_URL = "https://intraday.okbbc.com/"
 INVEST_API_ROOT = "https://invest.okbbc.com/api"

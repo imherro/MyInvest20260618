@@ -113,6 +113,7 @@ async function getJson(url) {
   requestUrl.searchParams.set("_t", Date.now().toString());
   const response = await fetch(requestUrl.toString(), {
     cache: "no-store",
+    signal: AbortSignal.timeout(25000),
     headers: { Accept: "application/json", "Cache-Control": "no-cache" },
   });
   if (!response.ok) {
@@ -5197,12 +5198,13 @@ async function loadDashboard() {
     const needsResults = pageNeedsResults();
     const needsScoreHistory = Boolean(document.getElementById("scoreHistoryChart"));
     const resultUrl = pageNeedsFullResults() ? "/api/results/summary" : "/api/results/summary?compact=1";
-    const [current, cycle, scoreHistory, results] = await Promise.all([
+    const responses = await Promise.allSettled([
       needsRegime ? getJson("/api/regime/current") : Promise.resolve(null),
       needsCycle ? getJson("/api/regime/cycle") : Promise.resolve(null),
       needsScoreHistory ? getJson("/api/regime/score-history") : Promise.resolve(null),
       needsResults ? getJson(resultUrl) : Promise.resolve(null),
     ]);
+    const [current, cycle, scoreHistory, results] = responses.map((response) => response.status === "fulfilled" ? response.value : null);
     state.current = current || null;
     state.cycle = cycle || null;
     state.scoreHistory = scoreHistory || null;
@@ -5223,6 +5225,9 @@ async function loadDashboard() {
     if (results && document.getElementById("shadowEquityChart")) renderShadowEquityChart("shadowEquityChart", results.shadow_backtest || {});
     if (results && document.getElementById("rotationBacktestChart")) renderEtfRotationBacktestChart("rotationBacktestChart", results.etf_rotation_backtest || {});
     if (results && document.getElementById("macroStyleEtfChart")) renderMacroStyleEtfBacktestChart("macroStyleEtfChart", results.macro_style_etf_backtest || {});
+    if (responses.some((response) => response.status === "rejected")) {
+      setText("asOf", current ? "部分数据更新失败，已显示可用结果" : "数据暂不可用，请稍后刷新");
+    }
   } finally {
     if (button) {
       button.disabled = false;

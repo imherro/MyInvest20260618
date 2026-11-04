@@ -8,9 +8,10 @@ runtime/
 .env
 .env.*
 !.env.example
-/apps/*/data/**
-!/apps/*/data/**/*.py
-!/apps/*/data/*.py
+/apps/*/data/
+!/apps/MyInvestPicking/data/
+/apps/MyInvestPicking/data/*
+!/apps/MyInvestPicking/data/*.py
 /apps/*/research/
 /apps/*/reports/
 /apps/*/logs/

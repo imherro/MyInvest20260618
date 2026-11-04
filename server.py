@@ -20,6 +20,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+from unified.registry import BY_ID, module_url
+from unified.urls import local_url
 
 
 ROOT = Path(__file__).resolve().parent
@@ -27,6 +29,7 @@ WEB_ROOT = ROOT / "web"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8888
 PUBLIC_HOME_URL = "https://invest.okbbc.com/"
+INTERNAL_ORIGIN = "http://127.0.0.1:8888"
 SHANGHAI_INDEX_LINK = "https://xueqiu.com/S/SH000001"
 CYCLE_HOME_URL = "https://cycle.okbbc.com/"
 STRATEGY_INDEX_HOME_URL = "https://strategyindex.okbbc.com/"
@@ -43,7 +46,7 @@ SHANGHAI_REALTIME_QUOTE_URL = (
 )
 REQUEST_TIMEOUT_SECONDS = 12
 QUOTE_TIMEOUT_SECONDS = 4
-MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 CACHE_TTL_SECONDS = 10 * 60
 QUOTE_CACHE_SECONDS = 15
 STATIC_CACHE_SECONDS = 60
@@ -135,8 +138,8 @@ def source_config(source_id: str, source: dict[str, str]) -> dict[str, str]:
         "id": source_id,
         "label": source["label"],
         "subtitle": source["subtitle"],
-        "home_url": source["home_url"],
-        "api_url": source["api_url"],
+        "home_url": local_url(source["home_url"]),
+        "api_url": local_url(source["api_url"]),
         "accent": source["accent"],
     }
 
@@ -146,7 +149,7 @@ def public_sources() -> list[dict[str, str]]:
 
 
 def api_root_url(home_url: str) -> str:
-    return f"{home_url.rstrip('/')}/api"
+    return local_url(f"{home_url.rstrip('/')}/api")
 
 
 def self_system_entry() -> dict[str, str]:
@@ -154,7 +157,7 @@ def self_system_entry() -> dict[str, str]:
         "id": "invest",
         "label": "首页",
         "title": "MyInvest 总览",
-        "home_url": PUBLIC_HOME_URL,
+        "home_url": "/",
         "api_url": api_root_url(PUBLIC_HOME_URL),
     }
 
@@ -171,11 +174,11 @@ def external_system_entry(
         "id": system_id,
         "label": label,
         "title": title,
-        "home_url": home_url,
+        "home_url": local_url(home_url),
         "api_url": api_root_url(home_url),
     }
     if index_api_url:
-        entry["index_api_url"] = index_api_url
+        entry["index_api_url"] = local_url(index_api_url)
     return entry
 
 
@@ -312,7 +315,7 @@ def fetch_source(source_id: str) -> dict[str, Any]:
 
     source = SOURCES[source_id]
     request = Request(
-        source["api_url"],
+        INTERNAL_ORIGIN + local_url(source["api_url"]),
         headers={
             "Accept": "application/json, text/plain;q=0.8, */*;q=0.5",
             "User-Agent": "MyInvest20260618-WebHub/1.0",
@@ -614,7 +617,7 @@ def build_header_payload() -> dict[str, Any]:
         "timezone": "Asia/Shanghai",
         "brand": {
             "label": "MyInvest",
-            "url": PUBLIC_HOME_URL,
+            "url": "/",
         },
         "links": header_links(),
     }
@@ -622,7 +625,7 @@ def build_header_payload() -> dict[str, Any]:
 
 def build_api_index_payload() -> dict[str, Any]:
     def public_endpoint(path: str) -> str:
-        return f"{PUBLIC_HOME_URL.rstrip('/')}{path}"
+        return path
 
     systems = system_entries()
     return {
@@ -699,13 +702,23 @@ class WebHubHandler(BaseHTTPRequestHandler):
     timeout = 30
 
     def do_GET(self) -> None:
+        from unified.gateway import dispatch
+        if dispatch(self):
+            return
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
         query = parse_qs(parsed.query)
         force_refresh = query.get("refresh", ["0"])[0].lower() in {"1", "true", "yes"}
 
         if path == "/healthz":
-            self.write_json({"ok": True, "generated_at": utc_now_iso()})
+            runtime = getattr(self.server, "runtime", None)
+            self.write_json({"ok": True, "generated_at": utc_now_iso(), "mode": "unified" if runtime else "hub-only"})
+            return
+        if path == "/api/health":
+            runtime = getattr(self.server, "runtime", None)
+            modules = runtime.status() if runtime else {}
+            healthy = len(modules) == 13 and all(m["alive"] and m["ready"] for m in modules.values())
+            self.write_json({"ok": healthy, "modules": modules}, status=200 if healthy else 503)
             return
         if path in {"/api", "/api/"}:
             self.write_json(build_api_index_payload(), cors=True)
@@ -733,13 +746,27 @@ class WebHubHandler(BaseHTTPRequestHandler):
 
         self.serve_static(path)
 
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
+    def do_POST(self) -> None:
+        from unified.gateway import dispatch
+        if not dispatch(self):
+            self.close_connection = True
+            self.write_json({"error": "method_not_allowed"}, status=405)
+
+    do_PUT = do_POST
+    do_PATCH = do_POST
+    do_DELETE = do_POST
+    do_OPTIONS = do_POST
+
     def serve_static(self, path: str) -> None:
         if path in {"", "/"}:
             target = WEB_ROOT / "index.html"
         else:
             clean_path = path.lstrip("/")
             target = (WEB_ROOT / clean_path).resolve()
-            if not str(target).startswith(str(WEB_ROOT.resolve())):
+            if not target.is_relative_to(WEB_ROOT.resolve()):
                 self.send_error(HTTPStatus.FORBIDDEN)
                 return
 
@@ -785,7 +812,7 @@ class WebHubHandler(BaseHTTPRequestHandler):
             if compressed:
                 self.send_header("Content-Encoding", "gzip")
         self.end_headers()
-        if not not_modified:
+        if not not_modified and self.command != "HEAD":
             self.wfile.write(body)
 
     def write_json(
@@ -806,12 +833,22 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the MyInvest web hub.")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=int(os.getenv("PORT", DEFAULT_PORT)))
+    parser.add_argument("--hub-only", action="store_true", help="Explicit rollback: homepage only")
+    parser.add_argument("--isolated-apps", type=Path, help="Test-only source copies; no original credentials/data")
     return parser.parse_args()
 
 
 def main() -> None:
+    global INTERNAL_ORIGIN
     args = parse_args()
     server = ThreadingHTTPServer((args.host, args.port), WebHubHandler)
+    INTERNAL_ORIGIN = f"http://127.0.0.1:{server.server_port}"
+    runtime = None
+    if not args.hub_only:
+        from unified.runtime import ApplicationRuntime
+        runtime = ApplicationRuntime(INTERNAL_ORIGIN, source_root=args.isolated_apps, isolated=bool(args.isolated_apps))
+        server.runtime = runtime
+        runtime.warmup()
     print(f"MyInvest Web Hub: http://{args.host}:{args.port}/")
     try:
         server.serve_forever()
@@ -819,6 +856,8 @@ def main() -> None:
         print("\nStopping MyInvest Web Hub.")
     finally:
         server.server_close()
+        if runtime:
+            runtime.close()
 
 
 if __name__ == "__main__":

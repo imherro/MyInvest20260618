@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "production_layout": "legacy-siblings",
+  "production_layout": "unified-ipc-with-legacy-data",
   "systems": [
-    {"id":"market","directory":"MyInvestMarket","port":8011,"health":"/api","command":["scripts/serve_market_web.py"]},
-    {"id":"theme","directory":"MyInvestTheme","port":8012,"health":"/api","command":["scripts/run_web.py"]},
-    {"id":"leader","directory":"MyInvestLeader","port":8014,"health":"/api","command":["scripts/run_web.py"]},
-    {"id":"etf","directory":"MyInvestETF","port":8017,"health":"/api","command":["scripts/run_web.py"]},
-    {"id":"stock","directory":"MyInvestStock","port":8016,"health":"/api","command":["scripts/run_web.py"]},
-    {"id":"shadow","directory":"MyInvestShadow","port":8013,"health":"/health","command":["-m","uvicorn","shadow_app.main:app"]},
-    {"id":"intraday","directory":"MyInvestIntraday","port":8022,"health":"/api","command":["server.py"]},
-    {"id":"position","directory":"MyInvestPosition","port":8018,"health":"/health","command":["-m","app.server"]},
-    {"id":"cycle","directory":"MyInvestCycle","port":8021,"health":"/api","command":["-m","uvicorn","web.app:app"]},
-    {"id":"strategyindex","directory":"MyInvestStrategyIndex","port":8023,"health":"/health.json","command":["-m","myinvest_strategy_index.webapp"]},
-    {"id":"short","directory":"MyShortTerm","port":8009,"health":"/","command":["-m","shortterm_trader.webapp"]},
-    {"id":"picking","directory":"MyInvestPicking","port":8019,"health":"/api","command":["-m","uvicorn","app.main:app"]},
-    {"id":"ten","directory":"MyInvestTenBagger","port":8020,"health":"/api","command":["scripts/serve_web.py"]}
+    {"id":"market","directory":"MyInvestMarket","port":8011,"health":"/api","command":["scripts/serve_market_web.py"],"runtime_paths":["data"]},
+    {"id":"theme","directory":"MyInvestTheme","port":8012,"health":"/api","command":["scripts/run_web.py"],"runtime_paths":["data","research"]},
+    {"id":"leader","directory":"MyInvestLeader","port":8014,"health":"/api","command":["scripts/run_web.py"],"runtime_paths":["research"]},
+    {"id":"etf","directory":"MyInvestETF","port":8017,"health":"/api","command":["scripts/run_web.py"],"runtime_paths":["data"]},
+    {"id":"stock","directory":"MyInvestStock","port":8016,"health":"/api","command":["scripts/run_web.py"],"runtime_paths":["data"]},
+    {"id":"shadow","directory":"MyInvestShadow","port":8013,"health":"/health","command":["-m","uvicorn","shadow_app.main:app"],"runtime_paths":["data"]},
+    {"id":"intraday","directory":"MyInvestIntraday","port":8022,"health":"/api","command":["server.py"],"runtime_paths":[]},
+    {"id":"position","directory":"MyInvestPosition","port":8018,"health":"/health","command":["-m","app.server"],"runtime_paths":["data","reports"]},
+    {"id":"cycle","directory":"MyInvestCycle","port":8021,"health":"/api","command":["-m","uvicorn","web.app:app"],"runtime_paths":["data","logs"]},
+    {"id":"strategyindex","directory":"MyInvestStrategyIndex","port":8023,"health":"/health.json","command":["-m","myinvest_strategy_index.webapp"],"runtime_paths":["data","reports"]},
+    {"id":"short","directory":"MyShortTerm","port":8009,"health":"/","command":["-m","shortterm_trader.webapp"],"runtime_paths":["data","reports","book"]},
+    {"id":"picking","directory":"MyInvestPicking","port":8019,"health":"/api","command":["-m","uvicorn","app.main:app"],"runtime_paths":["data/cache","data/frozen","reports"]},
+    {"id":"ten","directory":"MyInvestTenBagger","port":8020,"health":"/api","command":["scripts/serve_web.py"],"runtime_paths":["data","reports"]}
   ]
 }

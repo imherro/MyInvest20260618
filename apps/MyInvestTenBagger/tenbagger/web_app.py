@@ -2048,9 +2048,10 @@ def _page(content: str) -> str:
         }}
         .grid {{
           display: grid;
-          grid-template-columns: 0.8fr 1.2fr;
+          grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
           gap: 18px;
         }}
+        .grid > * {{ min-width: 0; }}
         .table-scroll {{
           max-width: 100%;
           overflow: auto;
@@ -2133,7 +2134,7 @@ def _page(content: str) -> str:
         }}
         .regime-strip {{
           display: grid;
-          grid-template-columns: repeat(90, minmax(4px, 1fr));
+          grid-template-columns: repeat(90, minmax(0, 1fr));
           gap: 2px;
           background: var(--panel);
           border: 1px solid var(--line);
@@ -2175,7 +2176,7 @@ def _page(content: str) -> str:
           .topbar-side {{ justify-items: start; margin-top: 10px; }}
           .dataset-badge {{ white-space: normal; }}
           .stamp {{ margin-top: 8px; }}
-          .metrics, .grid {{ grid-template-columns: 1fr; }}
+          .metrics, .grid {{ grid-template-columns: minmax(0, 1fr); }}
           table {{ display: block; overflow-x: auto; }}
         }}
       </style>

@@ -1,0 +1,80 @@
+{
+  "date": "2026-11-04",
+  "scope": "13 modules, one application entrypoint, one HTTP listener, shared domain paths",
+  "deployment": {
+    "origin": "https://invest.okbbc.com",
+    "listener": "127.0.0.1:8888",
+    "worker_transport": "multiprocessing pipes",
+    "ready_modules": 13,
+    "legacy_module_listeners": 0,
+    "monitor_passed": true,
+    "monitor_evidence": "temp/web_service_monitor/20261104_152106/summary.json"
+  },
+  "tests": {
+    "root_unittest_passed": 41,
+    "module_suites_passed": 13,
+    "module_tests_passed": 1347,
+    "additional_market_subtests_passed": 28,
+    "module_suite_evidence": "temp/monorepo-tests/run-dg9oknve/summary.json",
+    "module_counts": {
+      "market": 475,
+      "theme": 309,
+      "leader": 34,
+      "etf": 107,
+      "stock": 48,
+      "shadow": 53,
+      "intraday": 5,
+      "position": 23,
+      "cycle": 138,
+      "strategyindex": 44,
+      "short": 52,
+      "picking": 11,
+      "ten": 48
+    },
+    "focused_final_app_retests": "temp/monorepo-tests/run-cljro7ox/summary.json",
+    "isolated_integration_checks_passed": 45,
+    "integration_evidence": "temp/unified-tests/run-filenpyi/summary.json",
+    "integration_covers": [
+      "13 pages, API catalogs, meaningful native endpoints",
+      "26 concurrent requests",
+      "worker crash and recovery without request replay",
+      "zero module TCP listeners"
+    ],
+    "desktop_pages_passed": 14,
+    "desktop_evidence": "temp/unified-browser/20261104_145601/summary.json",
+    "mobile_pages_passed": 14,
+    "mobile_evidence": "temp/unified-browser/20261104_145552/summary.json",
+    "browser_js_errors": 0,
+    "browser_page_overflows": 0,
+    "browser_old_module_domain_requests": 0,
+    "offline_browser_exception": "Cycle's four live Tushare endpoints return expected 503 without credentials; saved backtest tested separately. Production live regime endpoint returned 200.",
+    "production_write_tests": "Not performed; no mutating production requests replayed",
+    "github_ci": "Not configured; results above are local and deployed-runtime acceptance"
+  },
+  "production_verification": {
+    "local_checks_passed": 29,
+    "local_evidence": "temp/unified-tests/production-local-accepted.json",
+    "public_edge_checks_passed": 29,
+    "public_edge_evidence": "temp/unified-tests/production-public-accepted.json",
+    "public_edge_dns_override": "invest.okbbc.com:443:104.21.47.190",
+    "override_scope": "Diagnostic curl invocation only; normal hostname and TLS validation retained",
+    "default_network_status": "Not fully healthy: after deployment, default fake-IP path 198.18.1.34 took 9.34s for healthz; /api timed out at 12s and homepage connection timed out at 6s. Do not claim general public latency recovery.",
+    "public_chrome_peng": "Homepage and same-window market navigation rendered successfully",
+    "fixed_in_application": [
+      "Cloudflare chunked request compatibility, bounded framing and size validation",
+      "Versioned static assets avoid stale shared navigation after cutover",
+      "Internal API calls use the unified loopback origin"
+    ]
+  },
+  "preservation": {
+    "original_source_changes": [],
+    "source_credential_scan_matches": [],
+    "runtime_directory_bindings": 21,
+    "verified_sqlite_backups": 4,
+    "backup_manifest": "runtime/backups/20261104_145133/manifest.json",
+    "rollback_hub": "runtime/rollback-hub/4f37ed9",
+    "old_repositories_and_credentials": "Retained in place; not copied into Git",
+    "preview_and_test_servers": "Stopped after acceptance",
+    "out_of_scope": ["Test", "TAA", "daily research writer automation working directories"]
+  }
+}

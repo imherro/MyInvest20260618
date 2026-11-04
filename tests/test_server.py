@@ -30,13 +30,13 @@ class ServerPayloadTests(unittest.TestCase):
     def test_public_sources_have_expected_entries(self):
         sources = server.public_sources()
         self.assertEqual(["market", "theme", "shadow", "leader", "stock", "position"], [item["id"] for item in sources])
-        self.assertEqual("https://market.okbbc.com/", sources[0]["home_url"])
-        self.assertEqual("https://market.okbbc.com/api/index", sources[0]["api_url"])
+        self.assertEqual("/market/", sources[0]["home_url"])
+        self.assertEqual("/api/market/index", sources[0]["api_url"])
         self.assertNotEqual(sources[0]["home_url"], sources[0]["api_url"])
-        self.assertEqual("https://leader.okbbc.com/", sources[3]["home_url"])
-        self.assertEqual("https://leader.okbbc.com/api/index", sources[3]["api_url"])
-        self.assertEqual("https://stock.okbbc.com/", sources[4]["home_url"])
-        self.assertEqual("https://stock.okbbc.com/api/index", sources[4]["api_url"])
+        self.assertEqual("/leader/", sources[3]["home_url"])
+        self.assertEqual("/api/leader/index", sources[3]["api_url"])
+        self.assertEqual("/stock/", sources[4]["home_url"])
+        self.assertEqual("/api/stock/index", sources[4]["api_url"])
 
     def test_all_sources_payload_preserves_source_order(self):
         def fake_fetch(source_id):
@@ -52,20 +52,20 @@ class ServerPayloadTests(unittest.TestCase):
 
         self.assertEqual(self.expected_system_ids, [item["id"] for item in links])
         self.assertEqual("首页", links[0]["label"])
-        self.assertEqual("https://invest.okbbc.com/", links[0]["url"])
-        self.assertEqual("https://theme.okbbc.com/", links[2]["url"])
-        self.assertEqual("https://leader.okbbc.com/", links[3]["url"])
-        self.assertEqual("https://etf.okbbc.com/", links[4]["url"])
-        self.assertEqual("https://stock.okbbc.com/", links[5]["url"])
-        self.assertEqual("https://shadow.okbbc.com/", links[6]["url"])
-        self.assertEqual("https://intraday.okbbc.com/", links[7]["url"])
-        self.assertEqual("https://position.okbbc.com/", links[8]["url"])
-        self.assertEqual("https://cycle.okbbc.com/", links[9]["url"])
-        self.assertEqual("https://strategyindex.okbbc.com/", links[10]["url"])
+        self.assertEqual("/", links[0]["url"])
+        self.assertEqual("/theme/", links[2]["url"])
+        self.assertEqual("/leader/", links[3]["url"])
+        self.assertEqual("/etf/", links[4]["url"])
+        self.assertEqual("/stock/", links[5]["url"])
+        self.assertEqual("/shadow/", links[6]["url"])
+        self.assertEqual("/intraday/", links[7]["url"])
+        self.assertEqual("/position/", links[8]["url"])
+        self.assertEqual("/cycle/", links[9]["url"])
+        self.assertEqual("/strategy/", links[10]["url"])
         self.assertEqual("https://taa.okbbc.com/", links[11]["url"])
-        self.assertEqual("https://short.okbbc.com/", links[12]["url"])
-        self.assertEqual("https://picking.okbbc.com/", links[13]["url"])
-        self.assertEqual("https://ten.okbbc.com/", links[14]["url"])
+        self.assertEqual("/short/", links[12]["url"])
+        self.assertEqual("/picking/", links[13]["url"])
+        self.assertEqual("/ten/", links[14]["url"])
         self.assertEqual("https://test.okbbc.com/", links[15]["url"])
 
     def test_header_payload_uses_shared_navigation_links(self):
@@ -73,30 +73,30 @@ class ServerPayloadTests(unittest.TestCase):
 
         self.assertTrue(payload["ok"])
         self.assertEqual("MyInvest", payload["brand"]["label"])
-        self.assertEqual("https://invest.okbbc.com/", payload["brand"]["url"])
+        self.assertEqual("/", payload["brand"]["url"])
         self.assertEqual(self.expected_system_ids, [item["id"] for item in payload["links"]])
 
     def test_api_index_payload_lists_system_api_entries(self):
         payload = server.build_api_index_payload()
 
         self.assertTrue(payload["ok"])
-        self.assertEqual("https://invest.okbbc.com/api", payload["system"]["api_url"])
+        self.assertEqual("/api", payload["system"]["api_url"])
         self.assertEqual(self.expected_system_ids, [item["id"] for item in payload["systems"]])
 
         systems_by_id = {item["id"]: item for item in payload["systems"]}
-        self.assertEqual("https://market.okbbc.com/api", systems_by_id["market"]["api_url"])
-        self.assertEqual("https://market.okbbc.com/api/index", systems_by_id["market"]["index_api_url"])
-        self.assertEqual("https://cycle.okbbc.com/api", systems_by_id["cycle"]["api_url"])
+        self.assertEqual("/api/market", systems_by_id["market"]["api_url"])
+        self.assertEqual("/api/market/index", systems_by_id["market"]["index_api_url"])
+        self.assertEqual("/api/cycle", systems_by_id["cycle"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["cycle"])
-        self.assertEqual("https://strategyindex.okbbc.com/api", systems_by_id["strategyindex"]["api_url"])
+        self.assertEqual("/api/strategy", systems_by_id["strategyindex"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["strategyindex"])
-        self.assertEqual("https://intraday.okbbc.com/api", systems_by_id["intraday"]["api_url"])
+        self.assertEqual("/api/intraday", systems_by_id["intraday"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["intraday"])
         self.assertEqual("https://test.okbbc.com/api", systems_by_id["test"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["test"])
         self.assertEqual("https://taa.okbbc.com/api", systems_by_id["taa"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["taa"])
-        self.assertEqual("https://short.okbbc.com/api", systems_by_id["short"]["api_url"])
+        self.assertEqual("/api/short", systems_by_id["short"]["api_url"])
         self.assertNotIn("index_api_url", systems_by_id["short"])
 
         endpoint_paths = [item["path"] for item in payload["endpoints"]]

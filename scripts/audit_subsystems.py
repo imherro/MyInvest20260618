@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from import_subsystems import ROOT
+from source_copy import source_files
 
 
 def main():
@@ -35,9 +36,7 @@ def main():
             elif hashlib.sha256(imported.read_bytes()).hexdigest() != entry["sha256"]:
                 adaptations.append(relative)
     findings = []
-    for path in (ROOT / "apps").rglob("*"):
-        if not path.is_file() or any(p in {"__pycache__", ".pytest_cache"} for p in path.parts):
-            continue
+    for path in (p for project in manifest["projects"] for p in source_files(project["directory"])):
         content = path.read_bytes()
         if any(value in content for value in values) or re.search(rb"(?:gh[pousr]_[A-Za-z0-9]{30,}|-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----)", content):
             findings.append(path.relative_to(ROOT).as_posix())

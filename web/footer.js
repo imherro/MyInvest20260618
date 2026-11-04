@@ -1,30 +1,30 @@
 (function () {
   const FALLBACK_LINKS = [
-    { id: "invest", label: "首页", title: "MyInvest 总览", url: "https://invest.okbbc.com/" },
-    { id: "market", label: "市场", title: "A股市场评分", url: "https://market.okbbc.com/" },
-    { id: "theme", label: "主线", title: "主题主线排名", url: "https://theme.okbbc.com/" },
-    { id: "leader", label: "龙头", title: "龙头研究", url: "https://leader.okbbc.com/" },
-    { id: "etf", label: "ETF", title: "ETF研究", url: "https://etf.okbbc.com/" },
-    { id: "stock", label: "个股", title: "个股研究", url: "https://stock.okbbc.com/" },
-    { id: "shadow", label: "影子", title: "影子观察", url: "https://shadow.okbbc.com/" },
-    { id: "intraday", label: "看盘", title: "看盘", url: "https://intraday.okbbc.com/" },
-    { id: "position", label: "操作", title: "仓位与执行", url: "https://position.okbbc.com/" },
-    { id: "cycle", label: "周期", title: "周期", url: "https://cycle.okbbc.com/" },
-    { id: "strategyindex", label: "策略", title: "策略", url: "https://strategyindex.okbbc.com/" },
+    { id: "invest", label: "首页", title: "MyInvest 总览", url: "/" },
+    { id: "market", label: "市场", title: "A股市场评分", url: "/market/" },
+    { id: "theme", label: "主线", title: "主题主线排名", url: "/theme/" },
+    { id: "leader", label: "龙头", title: "龙头研究", url: "/leader/" },
+    { id: "etf", label: "ETF", title: "ETF研究", url: "/etf/" },
+    { id: "stock", label: "个股", title: "个股研究", url: "/stock/" },
+    { id: "shadow", label: "影子", title: "影子观察", url: "/shadow/" },
+    { id: "intraday", label: "看盘", title: "看盘", url: "/intraday/" },
+    { id: "position", label: "操作", title: "仓位与执行", url: "/position/" },
+    { id: "cycle", label: "周期", title: "周期", url: "/cycle/" },
+    { id: "strategyindex", label: "策略", title: "策略", url: "/strategy/" },
     { id: "taa", label: "逆向", title: "逆向", url: "https://taa.okbbc.com/" },
-    { id: "short", label: "短线", title: "短线", url: "https://short.okbbc.com/" },
-    { id: "picking", label: "选股", title: "选股", url: "https://picking.okbbc.com/" },
-    { id: "ten", label: "十倍", title: "十倍", url: "https://ten.okbbc.com/" },
+    { id: "short", label: "短线", title: "短线", url: "/short/" },
+    { id: "picking", label: "选股", title: "选股", url: "/picking/" },
+    { id: "ten", label: "十倍", title: "十倍", url: "/ten/" },
     { id: "test", label: "测试", title: "测试", url: "https://test.okbbc.com/" },
   ];
-  const CACHE_KEY = "myinvest:unified-footer:v17";
+  const CACHE_KEY = "myinvest:unified-footer:v18";
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const DEFAULT_API_ORIGIN = "https://invest.okbbc.com";
   const CURRENT_SCRIPT = document.currentScript;
 
   function scriptApiUrl() {
     const script = CURRENT_SCRIPT;
-    if (script?.dataset.api) return script.dataset.api;
+    if (script?.dataset.api) return new URL(script.dataset.api, script.src || window.location.href).href;
     if (script?.src) {
       try {
         return `${new URL(script.src, window.location.href).origin}/api/footer`;
@@ -302,7 +302,7 @@
     for (const item of linkList(payload)) {
       const link = document.createElement("a");
       link.className = "mi-footer__link";
-      link.href = item.url;
+      link.href = new URL(item.url, scriptApiUrl()).href;
       link.textContent = item.label;
       link.title = item.title || item.label;
       nav.append(link);

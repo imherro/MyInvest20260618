@@ -1,16 +1,28 @@
 [CmdletBinding()]
 param(
     [switch]$NoStart,
-    [int]$StartupWaitSeconds = 15,
+    [switch]$Restart,
+    [switch]$LegacyServices,
+    [string[]]$Only,
+    [ValidateSet('monorepo', 'legacy')]
+    [string]$Layout = 'monorepo',
+    [string]$BindHost = "0.0.0.0",
+    [int]$StartupWaitSeconds = 60,
     [int]$HttpTimeoutSeconds = 4
 )
 
 $ErrorActionPreference = "Stop"
+if ($NoStart -and $Restart) { throw '-NoStart and -Restart cannot be combined.' }
+if ($Restart -and -not $Only) { throw '-Restart requires an explicit -Only service list.' }
 
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = (Resolve-Path (Join-Path $ScriptRoot "..")).Path
 $DocumentsRoot = (Resolve-Path (Join-Path $RepoRoot "..")).Path
 $LogRoot = Join-Path $RepoRoot "temp\web_service_monitor"
+$StateRoot = Join-Path $RepoRoot 'runtime\service-processes'
+$mutex = New-Object System.Threading.Mutex($false, 'Local\MyInvestUnifiedWebMonitor')
+if (-not $mutex.WaitOne(0)) { Write-Error 'Another MyInvest monitor is already running.'; exit 1 }
+# The owning handle is released when this script process exits.
 
 function ProjectPath {
     param([string]$Name)
@@ -35,22 +47,52 @@ function New-Service {
 }
 
 $Services = @(
-    (New-Service "home" $RepoRoot 8888 "/api" @("server.py", "--host", "127.0.0.1", "--port", "8888")),
-    (New-Service "market" (ProjectPath "MyInvestMarket") 8011 "/api" @("scripts\serve_market_web.py")),
-    (New-Service "cycle" (ProjectPath "MyInvestCycle") 8021 "/api" @("-m", "web.app")),
-    (New-Service "strategyindex" (ProjectPath "MyInvestStrategyIndex") 8023 "/health.json" @("-m", "myinvest_strategy_index.webapp", "--host", "127.0.0.1", "--port", "8023")),
-    (New-Service "taa" (ProjectPath "MyInvestTAA") 8025 "/api/assets" @("-m", "backend.main")),
-    (New-Service "theme" (ProjectPath "MyInvestTheme") 8012 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8012")),
-    (New-Service "leader" (ProjectPath "MyInvestLeader") 8014 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8014")),
-    (New-Service "shadow" (ProjectPath "MyInvestShadow") 8013 "/health" @("scripts\run_web.py")),
-    (New-Service "position" (ProjectPath "MyInvestPosition") 8018 "/health" @("-m", "app.server", "--host", "127.0.0.1", "--port", "8018")),
-    (New-Service "etf" (ProjectPath "MyInvestETF") 8017 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8017")),
-    (New-Service "stock" (ProjectPath "MyInvestStock") 8016 "/api" @("scripts\run_web.py", "--host", "127.0.0.1", "--port", "8016")),
-    (New-Service "intraday" (ProjectPath "MyInvestIntraday") 8022 "/api" @("server.py", "--host", "127.0.0.1", "--port", "8022")),
-    (New-Service "short" (ProjectPath "MyShortTerm") 8009 "/" @("-m", "shortterm_trader.webapp", "--host", "127.0.0.1", "--port", "8009")),
-    (New-Service "picking" (ProjectPath "MyInvestPicking") 8019 "/api" @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8019")),
-    (New-Service "ten" (ProjectPath "MyInvestTenBagger") 8020 "/api" @("scripts\serve_web.py", "--host", "127.0.0.1", "--port", "8020"))
+    (New-Service "home" $RepoRoot 8888 "/healthz" @('-u', (Join-Path $RepoRoot 'server.py'), "--host", $BindHost, "--port", "8888")),
+    (New-Service "test" (ProjectPath "MyInvestTest") 8024 "/index.html" @("-m", "http.server", "8024", "--bind", $BindHost, "--directory", "output")),
+    (New-Service "taa" (ProjectPath "MyInvestTAA") 8025 "/" @("-m", "uvicorn", "backend.main:app", "--host", $BindHost, "--port", "8025"))
 )
+
+# Default deployment has one listener for the hub and all 13 modules.
+# Test/TAA retain their existing paths and ports, outside the migration scope.
+$Registry = Get-Content (Join-Path $RepoRoot 'subsystems.json') -Raw | ConvertFrom-Json
+$Services = @($Services | Where-Object { $_.Id -notin $Registry.systems.id })
+if ($LegacyServices) { foreach ($system in $Registry.systems) {
+    $project = if ($Layout -eq 'legacy') { ProjectPath $system.directory } else { Join-Path (Join-Path $RepoRoot 'apps') $system.directory }
+    $launcher = Join-Path $RepoRoot 'scripts\production_service.py'
+    $Services += New-Service $system.id $project $system.port $system.health @('-u', $launcher, '--system', $system.id, '--layout', $Layout, '--host', $BindHost)
+} }
+if ($Only) {
+    foreach ($id in $Only) { if ($id -notin $Services.Id) { throw "Unknown service: $id" } }
+    $Services = @($Services | Where-Object { $_.Id -in $Only })
+}
+
+function Get-ServiceIdentity {
+    param([object]$Service)
+    $owners = @(Get-NetTCPConnection -State Listen -LocalPort $Service.Port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+    if (-not $owners.Count) { return [pscustomobject]@{ Ok=$true; LayoutMatch=$true; Pids=@(); Error=$null } }
+    $layoutMatch = $true
+    foreach ($owner in $owners) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $owner"
+        $command = $process.CommandLine
+        $migrated = $Service.Id -in $Registry.systems.id
+        if ($migrated) {
+            $ok = $command -and $command.Contains((Join-Path $RepoRoot 'scripts\production_service.py')) -and
+                $command -match ('--system\s+' + [regex]::Escape($Service.Id) + '(\s|$)') -and
+                $command -match '--layout\s+(monorepo|legacy)(\s|$)'
+            $layoutMatch = $command -match ('--layout\s+' + $Layout + '(\s|$)')
+        } else {
+            $expectedPath = if ($Service.Id -eq 'home') { Join-Path $RepoRoot 'server.py' } else { $Service.ProjectPath }
+            $ok = $command -and $command.Contains($expectedPath)
+            $stateFile = Join-Path $StateRoot ($Service.Id + '.json')
+            if (-not $ok -and (Test-Path -LiteralPath $stateFile)) {
+                $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json
+                $ok = $state.pid -eq $owner -and $state.created -eq $process.CreationDate.ToString('o') -and $state.command -eq $command
+            }
+        }
+        if (-not $ok) { return [pscustomobject]@{ Ok=$false; Pids=$owners; Error="Port owned by an unverified process $owner; refusing to stop or claim it." } }
+    }
+    return [pscustomobject]@{ Ok=$true; LayoutMatch=$layoutMatch; Pids=$owners; Error=$null }
+}
 
 function Get-PythonLaunch {
     param([string]$ProjectPath)
@@ -97,6 +139,27 @@ function Test-TcpPort {
     }
 }
 
+function Stop-ServiceListener {
+    param([object]$Service)
+
+    $identity = Get-ServiceIdentity $Service
+    if (-not $identity.Ok) { throw $identity.Error }
+    foreach ($owner in $identity.Pids) {
+        $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $owner" | Where-Object { $_.CommandLine -match 'multiprocessing.spawn' })
+        Stop-Process -Id $owner -Force -ErrorAction Stop
+        # Workers watch the parent sentinel. Wait before another process opens data.
+        foreach ($child in $children) {
+            $deadline = (Get-Date).AddSeconds(10)
+            do {
+                $current = Get-CimInstance Win32_Process -Filter "ProcessId = $($child.ProcessId)"
+                if (-not $current -or $current.CreationDate -ne $child.CreationDate) { break }
+                Start-Sleep -Milliseconds 200
+            } while ((Get-Date) -lt $deadline)
+            if ($current -and $current.CreationDate -eq $child.CreationDate) { throw "Worker $($child.ProcessId) did not exit; refusing overlapping startup." }
+        }
+    }
+}
+
 function Test-ServiceHttp {
     param([object]$Service)
 
@@ -132,6 +195,7 @@ function Start-WebService {
 
     $python = Get-PythonLaunch $Service.ProjectPath
     $arguments = @($python.Prefix) + @($Service.Arguments)
+    $arguments = @($arguments | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } })
     $stdout = Join-Path $RunLogDir "$($Service.Id).out.log"
     $stderr = Join-Path $RunLogDir "$($Service.Id).err.log"
 
@@ -143,6 +207,13 @@ function Start-WebService {
         -RedirectStandardOutput $stdout `
         -RedirectStandardError $stderr `
         -PassThru
+
+    $identity = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)"
+    if ($identity) {
+        New-Item -ItemType Directory -Force -Path $StateRoot | Out-Null
+        @{pid=$process.Id; created=$identity.CreationDate.ToString('o'); command=$identity.CommandLine} |
+            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $StateRoot ($Service.Id + '.json')) -Encoding utf8
+    }
 
     return [pscustomobject]@{
         ProcessId = $process.Id
@@ -195,6 +266,18 @@ foreach ($service in $Services) {
         continue
     }
 
+    $identity = Get-ServiceIdentity $service
+    if (-not $identity.Ok -or (-not $identity.LayoutMatch -and -not $Restart)) {
+        $result.status = 'unverified_listener'
+        $result.error = if ($identity.Error) { $identity.Error } else { 'Managed process has different layout; explicit -Restart -Only is required.' }
+        $results += [pscustomobject]$result
+        continue
+    }
+    if ($identity.Pids.Count) { $result.process_id = $identity.Pids[0] }
+    if ($Restart) {
+        Stop-ServiceListener $service
+    }
+
     $initial = Test-ServiceHttp $service
     $result.http_status = $initial.StatusCode
     if ($initial.Ok) {
@@ -227,7 +310,9 @@ foreach ($service in $Services) {
         $after = Wait-ServiceHttp $service
         $result.http_status = $after.StatusCode
         if ($after.Ok) {
-            $result.status = "started"
+            $verified = Get-ServiceIdentity $service
+            if ($verified.Ok -and $start.ProcessId -in $verified.Pids) { $result.status = "started" }
+            else { $result.status = 'failed_to_start'; $result.error = 'HTTP responded but listener identity does not match launched process.' }
         }
         else {
             $result.status = "failed_to_start"
@@ -242,7 +327,30 @@ foreach ($service in $Services) {
     $results += [pscustomobject]$result
 }
 
-$failureStatuses = @("missing_path", "port_busy_unhealthy", "failed_to_start")
+$moduleResults = @()
+$moduleProbeFailures = @()
+if (-not $LegacyServices -and 'home' -in $Services.Id -and @($results | Where-Object { $_.id -eq 'home' -and $_.status -in @('running', 'started') }).Count) {
+    foreach ($system in $Registry.systems) {
+        $slug = if ($system.id -eq 'strategyindex') { 'strategy' } else { $system.id }
+        $path = if ($system.health -eq '/api') { "/api/$slug" } else { "/$slug$($system.health)" }
+        if (-not $NoStart) {
+            # A request revives a dead IPC worker without starting a second web service.
+            try { Invoke-WebRequest -Uri "http://127.0.0.1:8888$path" -UseBasicParsing -TimeoutSec $StartupWaitSeconds | Out-Null }
+            catch { $moduleProbeFailures += $system.id; Write-Warning "Module probe failed: $($system.id)" }
+        }
+    }
+    try {
+        $health = Invoke-RestMethod -Uri 'http://127.0.0.1:8888/api/health' -TimeoutSec $HttpTimeoutSeconds
+        foreach ($system in $Registry.systems) {
+            $state = $health.modules.($system.id)
+            $moduleResults += [pscustomobject]@{ id=$system.id; ready=([bool]$state.ready -and [bool]$state.alive); pid=$state.pid; transport=$state.transport }
+        }
+        if (-not $health.ok -or $moduleResults.Count -ne 13 -or $moduleProbeFailures.Count) { throw "Unified module health is incomplete. Failed probes: $($moduleProbeFailures -join ', ')" }
+    } catch {
+        $results += [pscustomobject]@{ id='unified-modules'; port=8888; status='failed_to_start'; error=$_.Exception.Message }
+    }
+}
+$failureStatuses = @("missing_path", "port_busy_unhealthy", "failed_to_start", "unverified_listener", "stopped")
 $failures = @($results | Where-Object { $failureStatuses -contains $_.status })
 $summary = [ordered]@{
     checked_at = (Get-Date).ToString("o")
@@ -255,6 +363,7 @@ $summary = [ordered]@{
         failed = @($failures).Count
     }
     services = $results
+    modules = $moduleResults
 }
 
 $summaryPath = Join-Path $RunLogDir "summary.json"

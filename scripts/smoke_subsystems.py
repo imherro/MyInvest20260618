@@ -12,6 +12,7 @@ from urllib.request import ProxyHandler, build_opener
 from subsystems import ROOT, systems
 from test_subsystems import isolated_environment
 from offline_tests import PRODUCTION_PORTS
+from source_copy import copy_source
 
 
 def main():
@@ -22,8 +23,7 @@ def main():
     opener = build_opener(ProxyHandler({}))
     for system in systems():
         app = run / "apps" / system["directory"]
-        shutil.copytree(ROOT / "apps" / system["directory"], app,
-                        ignore=shutil.ignore_patterns(".env", ".env.*", "__pycache__", ".pytest_cache", ".venv", "temp", "runtime"))
+        copy_source(system["directory"], app)
         while True:
             with socket.socket() as listener:
                 listener.bind(("127.0.0.1", 0))

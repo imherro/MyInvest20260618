@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from import_subsystems import PROJECTS
+from source_copy import copy_source
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,8 +42,7 @@ def main() -> int:
     for key in args.system or PROJECTS:
         name = PROJECTS[key]
         destination = run / "apps" / name
-        shutil.copytree(ROOT / "apps" / name, destination,
-                        ignore=shutil.ignore_patterns(".env", ".env.*", "__pycache__", ".pytest_cache", ".venv", "temp", "runtime"))
+        copy_source(name, destination)
         fixture_count = 0
         fixture_index = []
         if args.data_root:

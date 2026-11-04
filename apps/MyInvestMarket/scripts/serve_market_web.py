@@ -4,6 +4,7 @@ import hashlib
 import html
 import json
 import mimetypes
+import os
 import argparse
 import traceback
 from datetime import datetime, time, timedelta
@@ -42,7 +43,8 @@ DEFAULT_BASE_URL = f"http://127.0.0.1:{PORT}"
 POST_CLOSE_READY_TIME = time(16, 30)
 CYCLE_POSITION_POLICY_PATH = DATA_DIR / "cycle_engine_position_policy_v1.json"
 CYCLE_ENGINE_CHART_PATH = DATA_DIR / "cycle_engine_chart_v1.json"
-CYCLE_ENGINE_BACKTEST_PATH = ROOT / "web" / "data" / "cycle-engine-backtest.json"
+WEB_DATA_DIR = Path(os.environ.get("MYINVEST_MARKET_WEB_DATA", WEB_DIR / "data"))
+CYCLE_ENGINE_BACKTEST_PATH = WEB_DATA_DIR / "cycle-engine-backtest.json"
 CYCLE_ENGINE_FEATURES_PATH = DATA_DIR / "cycle_engine_features_v1.json"
 CYCLE_ENGINE_DOMAIN_SIGNALS_PATH = DATA_DIR / "cycle_engine_domain_signals_v1.json"
 CYCLE_ENGINE_CANDIDATE_PATH = DATA_DIR / "cycle_engine_cycle_state_candidate_v1.json"
@@ -2404,6 +2406,9 @@ class MarketWebHandler(BaseHTTPRequestHandler):
     def send_static(self, request_path: str) -> None:
         root = WEB_DIR.resolve()
         relative = "index.html" if request_path in ["", "/"] else request_path.lstrip("/")
+        if relative.startswith("data/"):
+            root = WEB_DATA_DIR.resolve()
+            relative = relative[len("data/"):]
         target = (root / relative).resolve()
         if target == root:
             target = target / "index.html"

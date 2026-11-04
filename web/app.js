@@ -3,42 +3,42 @@ const CHANNELS = [
     id: "market",
     label: "市场",
     subtitle: "A股市场评分",
-    home_url: "https://market.okbbc.com/",
+    home_url: "/market/",
     accent: "market",
   },
   {
     id: "theme",
     label: "主线",
     subtitle: "主题主线排名",
-    home_url: "https://theme.okbbc.com/",
+    home_url: "/theme/",
     accent: "theme",
   },
   {
     id: "shadow",
     label: "影子",
     subtitle: "影子观察",
-    home_url: "https://shadow.okbbc.com/",
+    home_url: "/shadow/",
     accent: "shadow",
   },
   {
     id: "leader",
     label: "龙头",
     subtitle: "龙头研究",
-    home_url: "https://leader.okbbc.com/",
+    home_url: "/leader/",
     accent: "leader",
   },
   {
     id: "stock",
     label: "个股",
     subtitle: "个股研究",
-    home_url: "https://stock.okbbc.com/",
+    home_url: "/stock/",
     accent: "stock",
   },
   {
     id: "position",
     label: "操作",
     subtitle: "仓位与执行",
-    home_url: "https://position.okbbc.com/",
+    home_url: "/position/",
     accent: "position",
   },
 ];
@@ -112,7 +112,7 @@ const POLICY_MAINLINE_STATES = new Set(["accelerating", "sustained"]);
 const MARKET_HEAT_STAGES = ["主线确认", "次主线"];
 const POST_CLOSE_READY_HOUR = 20;
 
-const LOCAL_CACHE_KEY = "myinvest20260618:sources:v1";
+const LOCAL_CACHE_KEY = "myinvest20260618:sources:v2";
 const LOCAL_CACHE_TTL_MS = 10 * 60 * 1000;
 
 let state = new Map();

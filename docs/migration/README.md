@@ -1,5 +1,9 @@
 # 13-system source consolidation
 
+> This document records the completed source-only phase. The subsequent deployment
+> and runtime architecture supersede its original deployment boundary; see
+> [Unified MyInvest Application](unified-application.md).
+
 ## Scope and deployment boundary
 
 The existing MyInvest20260618 repository owns the source under `apps/`.
