@@ -1,0 +1,37 @@
+{
+  "timezone": "Asia/Shanghai",
+  "jobs": {
+    "leader": {
+      "automation_id": "myinvestleader",
+      "name": "MyInvestLeader 龙头研究日更",
+      "rrule": "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=19;BYMINUTE=5;BYSECOND=0",
+      "status": "ACTIVE",
+      "runbook": "docs/research-jobs/leader.md",
+      "steps": [["scripts/generate_leader_report.py", "--write"], ["scripts/generate_stock_deep_research.py", "--write"], ["scripts/generate_final_audit.py", "--write"]]
+    },
+    "market": {
+      "automation_id": "myinvestmarket",
+      "name": "MyInvestMarket 市场收盘后日更",
+      "rrule": "RRULE:FREQ=WEEKLY;BYHOUR=21;BYMINUTE=0;BYDAY=MO,TU,WE,TH,FR",
+      "status": "PAUSED",
+      "runbook": "docs/research-jobs/market.md",
+      "steps": [["scripts/run_post_close_update.py", "--no-git", "--allow-dirty"]]
+    },
+    "theme": {
+      "automation_id": "a-2",
+      "name": "MyInvestTheme主线收盘后日更",
+      "rrule": "RRULE:FREQ=WEEKLY;BYHOUR=22;BYMINUTE=0;BYDAY=MO,TU,WE,TH,FR",
+      "status": "PAUSED",
+      "runbook": "docs/research-jobs/theme.md",
+      "steps": [["scripts/daily_mainline_update.py", "--no-git"]]
+    }
+  },
+  "embedded": {
+    "shadow": {
+      "owner": "unified shadow worker lifespan",
+      "schedule_env": "SHADOW_SCHEDULE_TIMES",
+      "default_times": ["21:10", "21:40", "22:10"],
+      "note": "Existing original .env overrides remain authoritative; do not create another scheduler."
+    }
+  }
+}

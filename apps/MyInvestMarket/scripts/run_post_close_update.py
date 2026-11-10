@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 TZ = ZoneInfo("Asia/Shanghai")
 PORT = 8011
-LOCK_PATH = ROOT / "temp" / "runtime" / "post_close_update.lock"
+LOCK_PATH = Path(os.environ.get("MYINVEST_RESEARCH_ORIGINAL", ROOT)) / "temp" / "runtime" / "post_close_update.lock"
 LOCK_STALE_SECONDS = 6 * 60 * 60
 ROLLING_SNAPSHOT_TARGET_COUNT = market_scoring.MIN_ROLLING_SAMPLE_COUNT + 1
 VERIFY_ENDPOINTS = [
@@ -833,6 +833,10 @@ def validate_api_payloads(payloads: dict[str, dict[str, Any]]) -> dict[str, Any]
 
 
 def ensure_server() -> None:
+    if os.environ.get("MYINVEST_UNIFIED_ORIGIN"):
+        # The unified runner rewrites legacy URLs to 8888. Never start port 8011.
+        endpoint_json("/api/index")
+        return
     try:
         endpoint_json("/api/index")
         return

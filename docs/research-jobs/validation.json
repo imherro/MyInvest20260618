@@ -1,0 +1,36 @@
+{
+  "checked_on": "2026-11-10",
+  "scope": "daily research automation migration; no production research generation",
+  "automations": {
+    "updated_existing_ids": ["myinvestmarket", "a-2", "myinvestleader"],
+    "created_ids": [],
+    "preserved_fields": ["id", "kind", "name", "rrule", "status", "model", "reasoning_effort", "execution_environment", "created_at"],
+    "workspace": "MyInvest20260618",
+    "readback_audit_errors": 0,
+    "unfinished_runs_at_cutover": 0,
+    "legacy_writer_processes_at_cutover": 0,
+    "web_monitor_unchanged": true,
+    "matching_windows_scheduled_tasks": 0
+  },
+  "tests": {
+    "root_scoped": {"passed": 69, "subtests_passed": 79},
+    "new_research_runner_tests_included": 21,
+    "isolated_subsystems": {
+      "market": {"passed": 475, "subtests_passed": 28},
+      "theme": {"passed": 309},
+      "leader": {"passed": 34}
+    },
+    "suite_summary": "temp/monorepo-tests/run-iy1a8fch/summary.json",
+    "production_read_only_checks": {"passed": 33, "ready_modules": 15},
+    "service_evidence": "temp/research-jobs-migration/services.json"
+  },
+  "safety": {
+    "production_writers_executed": false,
+    "original_repositories_modified_by_migration": false,
+    "data_paths_changed": false,
+    "credentials_copied": false,
+    "services_restarted_by_migration": false,
+    "daily_data_git_publishing": false,
+    "live_vendor_data_acceptance": "not executed; next scheduled run retains freshness and completeness gates"
+  }
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -53,6 +54,11 @@ class GeneratedArtifactTransaction:
 
 
 def run_command(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    managed_root = os.environ.get("MYINVEST_RESEARCH_ROOT")
+    if managed_root and args[1:3] == ["-m", "pytest"]:
+        # Retain the canonical rollback gate, but run tests away from live data.
+        args = [sys.executable, str(Path(managed_root) / "scripts/test_subsystems.py"),
+                "--system", "theme", "--data-root", str(Path(managed_root).parent)]
     print(f"$ {' '.join(args)}", flush=True)
     result = subprocess.run(args, cwd=ROOT, text=True, encoding="utf-8", errors="replace", capture_output=True)
     if result.stdout:
@@ -89,6 +95,9 @@ def is_allowed_policy_dirty(path: str) -> bool:
 
 
 def policy_dirty_paths() -> list[Path]:
+    if os.environ.get("MYINVEST_RESEARCH_ROOT"):
+        changed = json.loads(os.environ.get("MYINVEST_RESEARCH_POLICY_CHANGED", "[]"))
+        return [ROOT / path for path in changed if is_allowed_policy_dirty(path)]
     return [ROOT / path for path in dirty_paths() if is_allowed_policy_dirty(path)]
 
 

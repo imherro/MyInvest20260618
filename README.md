@@ -91,6 +91,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1 -NoSt
 
 巡检日志写入 `temp/web_service_monitor/`。当前覆盖：首页、市场、主线、龙头、ETF、个股、影子、看盘、操作、周期、策略、逆向、短线、选股、十倍。
 
+## 每日研究任务
+
+原市场、主线、龙头日更已通过同一自动化 ID 迁移到本仓库管理；原时间与启停状态不变。
+统一清单见 `research_jobs.json`，执行、去重、原数据路径、隔离测试和回滚说明见
+[研究任务管理](docs/research-jobs/README.md)。影子的内置调度继续由统一 worker 执行，不另建副本。
+
 ## 系统 API 入口
 
 全系统 API 说明：
