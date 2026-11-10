@@ -42,6 +42,11 @@ def main():
     os.environ.pop("PYTHONPATH", None)
     os.chdir(source)
     sys.path.insert(0, str(source))
+    if system["id"] == "test" and args.layout == "legacy":
+        from functools import partial
+        from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+        ThreadingHTTPServer((args.host, system["port"]), partial(SimpleHTTPRequestHandler, directory=str(source / "output"))).serve_forever()
+        return
     command = [*system["command"], "--host", args.host, "--port", str(system["port"])]
     print(f"system={args.system} layout={args.layout} source={source} port={system['port']}", flush=True)
     if command[0] == "-m":

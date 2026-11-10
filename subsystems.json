@@ -14,6 +14,8 @@
     {"id":"strategyindex","directory":"MyInvestStrategyIndex","port":8023,"health":"/health.json","command":["-m","myinvest_strategy_index.webapp"],"runtime_paths":["data","reports"]},
     {"id":"short","directory":"MyShortTerm","port":8009,"health":"/","command":["-m","shortterm_trader.webapp"],"runtime_paths":["data","reports","book"]},
     {"id":"picking","directory":"MyInvestPicking","port":8019,"health":"/api","command":["-m","uvicorn","app.main:app"],"runtime_paths":["data/cache","data/frozen","reports"]},
-    {"id":"ten","directory":"MyInvestTenBagger","port":8020,"health":"/api","command":["scripts/serve_web.py"],"runtime_paths":["data","reports"]}
+    {"id":"ten","directory":"MyInvestTenBagger","port":8020,"health":"/api","command":["scripts/serve_web.py"],"runtime_paths":["data","reports"]},
+    {"id":"taa","directory":"MyInvestTAA","port":8025,"health":"/api","standalone_health":"/","command":["-m","uvicorn","backend.main:app"],"runtime_paths":["reports","data/execution_prices","data/local","data/market","data/research_prices","data/strategy_style_category_calculations_v1","data/strategy_style_daily_logic_v1","data/strategy_style_logic_events_v1","data/strategy_style_research","data/strategy_style_walk_forward_v1"]},
+    {"id":"test","directory":"MyInvestTest","port":8024,"health":"/api","standalone_health":"/index.html","command":["scripts/serve_web.py"],"runtime_paths":["output"]}
   ]
 }

@@ -20,9 +20,10 @@ HANDLERS = {
     "position": ("app.server", "ApiHandler"),
     "strategyindex": ("myinvest_strategy_index.webapp", "StrategyIndexHandler"),
     "short": ("shortterm_trader.webapp", "DashboardHandler"),
+    "test": ("serve_web", "ResearchHandler"),
 }
 ASGI = {"theme": "web.main", "leader": "leader_app.main", "shadow": "shadow_app.main",
-        "cycle": "web.app", "picking": "app.main", "ten": "tenbagger.web_app"}
+        "cycle": "web.app", "picking": "app.main", "ten": "tenbagger.web_app", "taa": "backend.main"}
 
 
 class MemorySocket:
@@ -79,6 +80,9 @@ async def serve_asgi(connection, system_id):
     import httpx
     module = importlib.import_module(ASGI[system_id])
     app = module.create_app(report_dir=Path.cwd() / "reports") if system_id == "ten" else module.app
+    if system_id == "taa":
+        from .taa_api import install
+        install(app)
     # FastAPI/Starlette's lifecycle includes the application's existing startup jobs.
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)

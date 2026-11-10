@@ -24,8 +24,8 @@ class MonorepoTests(unittest.TestCase):
 
     def test_registry_is_complete_and_independent(self):
         systems = subsystems.systems()
-        self.assertEqual(len(systems), 13)
-        self.assertEqual(len({s["port"] for s in systems}), 13)
+        self.assertEqual(len(systems), 15)
+        self.assertEqual(len({s["port"] for s in systems}), len(systems))
         self.assertEqual({s["id"]: s["directory"] for s in systems}, import_subsystems.PROJECTS)
         for system in systems:
             root = ROOT / "apps" / system["directory"]

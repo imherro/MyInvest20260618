@@ -218,12 +218,14 @@ def system_entries() -> list[dict[str, str]]:
             label="测试",
             title="测试",
             home_url=TEST_HOME_URL,
+            index_api_url=TEST_HOME_URL + "api/index",
         ),
         "taa": external_system_entry(
             "taa",
             label="逆向",
             title="逆向",
             home_url=TAA_HOME_URL,
+            index_api_url=TAA_HOME_URL + "api/index",
         ),
         "etf": external_system_entry(
             "etf",
@@ -717,7 +719,7 @@ class WebHubHandler(BaseHTTPRequestHandler):
         if path == "/api/health":
             runtime = getattr(self.server, "runtime", None)
             modules = runtime.status() if runtime else {}
-            healthy = len(modules) == 13 and all(m["alive"] and m["ready"] for m in modules.values())
+            healthy = set(modules) == set(BY_ID) and all(m["alive"] and m["ready"] for m in modules.values())
             self.write_json({"ok": healthy, "modules": modules}, status=200 if healthy else 503)
             return
         if path in {"/api", "/api/"}:

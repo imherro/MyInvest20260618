@@ -70,15 +70,15 @@ def main():
                     print(json.dumps(row), flush=True)
             with opener.open(f"http://127.0.0.1:{port}/api/health") as response:
                 health = json.load(response)
-            if not health["ok"] or len(health["modules"]) != 13:
-                raise RuntimeError("Not all 13 workers are ready")
+            if not health["ok"] or set(health["modules"]) != {s["id"] for s in SYSTEMS}:
+                raise RuntimeError("Not all registered workers are ready")
             def concurrent_probe(system):
                 with opener.open(f"http://127.0.0.1:{port}{module_url(system['id'], '/api')}", timeout=30) as response:
                     response.read()
                     return response.headers.get("X-MyInvest-Module") == system["id"]
             with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 concurrency_ok = all(executor.map(concurrent_probe, SYSTEMS * 2))
-            results.append({"test": "26_concurrent_catalog_requests", "status": 200 if concurrency_ok else 500})
+            results.append({"test": "concurrent_catalog_requests", "requests": 2 * len(SYSTEMS), "status": 200 if concurrency_ok else 500})
             # This PID belongs to the disposable server created above, not production.
             previous_pid = health["modules"]["intraday"]["pid"]
             os.kill(previous_pid, signal.SIGTERM)

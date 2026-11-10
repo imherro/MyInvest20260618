@@ -1,5 +1,6 @@
 """Check all imported web entry points on temporary ports in disposable copies."""
 import json
+import argparse
 import shutil
 import socket
 import subprocess
@@ -16,6 +17,9 @@ from source_copy import copy_source
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-root", type=Path, help="Original repositories containing read-only TAA/Test fixtures")
+    args = parser.parse_args()
     base = ROOT / "temp/monorepo-smoke"
     base.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix="run-", dir=base))
@@ -24,6 +28,9 @@ def main():
     for system in systems():
         app = run / "apps" / system["directory"]
         copy_source(system["directory"], app)
+        if args.data_root and system["id"] in {"taa", "test"}:
+            from integration_fixtures import copy_fixtures
+            copy_fixtures(system, args.data_root / system["directory"], app)
         while True:
             with socket.socket() as listener:
                 listener.bind(("127.0.0.1", 0))
@@ -39,7 +46,7 @@ def main():
                 deadline = time.monotonic() + 25
                 while time.monotonic() < deadline and process.poll() is None:
                     try:
-                        with opener.open(f"http://127.0.0.1:{port}{system['health']}", timeout=2) as response:
+                        with opener.open(f"http://127.0.0.1:{port}{system.get('standalone_health', system['health'])}", timeout=2) as response:
                             body = response.read()
                             row.update(ok=response.status == 200 and bool(body), status=response.status, bytes=len(body))
                             break

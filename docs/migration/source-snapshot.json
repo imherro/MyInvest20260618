@@ -11260,6 +11260,1133 @@
         }
       ],
       "excluded": []
+    },
+    {
+      "id": "taa",
+      "directory": "MyInvestTAA",
+      "origin": "https://github.com/imherro/MyInvestTAA.git",
+      "source_head": "16cc0deace01520e2e4c6b57d2c884db7496156b",
+      "source_status": "?? AGENTS.md\n?? docs/MyInvestTAA_全收益指数研究资产范围_V1.0.docx\n?? docs/REQUIREMENTS.md",
+      "files": [
+        {
+          "path": ".gitignore",
+          "bytes": 183,
+          "sha256": "60fdf7bffcd85c2af8efb680c0a15edfa1d40b2cb13b85fda2d6f14028d95e03"
+        },
+        {
+          "path": "PROJECT_MEMORY.md",
+          "bytes": 464,
+          "sha256": "2e73c00eb334c5b25d67571f75b3c82613304a311d860f86740c13c833e55e30"
+        },
+        {
+          "path": "README.md",
+          "bytes": 3889,
+          "sha256": "19473846bb8723b2d9ddf3f53d3f2bcdc69298223b559522b009da14bf2c5e23"
+        },
+        {
+          "path": "backend/__init__.py",
+          "bytes": 1,
+          "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+        },
+        {
+          "path": "backend/current_web.py",
+          "bytes": 27695,
+          "sha256": "d15a002c480ccf41ee7269b2ddb111e95f40d7b990ace4286e4b3649f1295ed4"
+        },
+        {
+          "path": "backend/main.py",
+          "bytes": 504,
+          "sha256": "5667ded1b23fbb7e2267c202b5eeade3ced8f8762d7561325984147b89afb41b"
+        },
+        {
+          "path": "backend/templates/allocation.html",
+          "bytes": 1097,
+          "sha256": "fa1985a59aabee6587c3554bf51befac02335e8b458ea5210c57c5b4a3072571"
+        },
+        {
+          "path": "backend/templates/base.html",
+          "bytes": 13179,
+          "sha256": "245eae2c50a353f921921800c49818af95d71d059a390688fe4428b8d5e0c302"
+        },
+        {
+          "path": "backend/templates/data.html",
+          "bytes": 1091,
+          "sha256": "179686adad2fad5feae83c32923d0568f404e39f1332990aa3c5f259edc97299"
+        },
+        {
+          "path": "backend/templates/home.html",
+          "bytes": 1829,
+          "sha256": "203b754d9d1cf8a7235a1279c58147639242933212a3b89b74ad700438c190f2"
+        },
+        {
+          "path": "backend/templates/research.html",
+          "bytes": 1358,
+          "sha256": "db62e5a7fc2e79d5010ce3a49e2b5eb56eda126a5d5ae1d524fdeabbac8382a2"
+        },
+        {
+          "path": "backend/templates/shadow.html",
+          "bytes": 927,
+          "sha256": "3651a135e0d5652df31b75c6a4cb439207cee18bf76f7caba92661c1ce8c6d41"
+        },
+        {
+          "path": "backend/templates/site-map.html",
+          "bytes": 1856,
+          "sha256": "8e7a804c1a5af6b4ea22648f46b46176056df662325caf5030bbe2682fcd2b93"
+        },
+        {
+          "path": "backend/templates/strategies.html",
+          "bytes": 1696,
+          "sha256": "78a77da3f77f36d8f58ee8542c197aeb43deb0cbc9fa3bbcffde3014383b5f84"
+        },
+        {
+          "path": "backend/templates/strategy-current-taa.html",
+          "bytes": 3164,
+          "sha256": "3440cb5d09c4385413d3170e0b68024d1940652790cdac6dcdfd5e2fa4644545"
+        },
+        {
+          "path": "backend/templates/strategy-p2-style-drawdown.html",
+          "bytes": 3683,
+          "sha256": "36b5469aa2da6495928cc3ff84d7b650c9556417f598df68da2999369ec2fbff"
+        },
+        {
+          "path": "config/etf_mappings.json",
+          "bytes": 2606,
+          "sha256": "3865b51f9acc230f2c7fd9415c40f4f6fb2c0f134e69ac530a32ad9060ff4bce"
+        },
+        {
+          "path": "config/research_assets.json",
+          "bytes": 1675,
+          "sha256": "5a7542d1f6bc8dec9d1cda17a11fb74b4838def5f5047216159ad41e9cd380fb"
+        },
+        {
+          "path": "config/research_universe_v1.json",
+          "bytes": 18181,
+          "sha256": "c65c16db8bc334f8af84b07aad553e2e86f4ce3508beffb23ff3f4f48237ae63"
+        },
+        {
+          "path": "config/strategy_style_research_universe_v1.json",
+          "bytes": 2890,
+          "sha256": "727ab597519c073de2183c5accab5b2c72efdda140d4f32fe2848ea3eecac2be"
+        },
+        {
+          "path": "current_taa/__init__.py",
+          "bytes": 135,
+          "sha256": "5d4eea13d49928a7c9e710b3c60a50184612f0802f8b0e624e2d96c99d43ca38"
+        },
+        {
+          "path": "current_taa/allocation.py",
+          "bytes": 4191,
+          "sha256": "a7657ea50796f8b1f5e73f15dc72349bc6be03e87c308f11c5e1127fcaa06189"
+        },
+        {
+          "path": "current_taa/drawdown_events.py",
+          "bytes": 10403,
+          "sha256": "c60810c677c032b4b25eccf155b95435eb7c2d24e05befc70f13de7e91f774f5"
+        },
+        {
+          "path": "current_taa/drawdown_outcomes.py",
+          "bytes": 9770,
+          "sha256": "0d656ff627d531d5404789a7a7aa5ca6201e3f47f51f531054a66af1003334b1"
+        },
+        {
+          "path": "current_taa/drawdown_profiles.py",
+          "bytes": 21696,
+          "sha256": "5d6493380ef9d7e140ac9e76ce08ca4e3155a637bf26449303e43a8ebc785952"
+        },
+        {
+          "path": "current_taa/drawdown_threshold_cohorts.py",
+          "bytes": 8798,
+          "sha256": "680e6833ceb8e3a6a7fe414a36424f702b4054012dfd9386b9311701ee159b86"
+        },
+        {
+          "path": "current_taa/drawdown_threshold_statistics.py",
+          "bytes": 19046,
+          "sha256": "2b2b31c7b1e9a721efe8e50feb72d68f296edc25c38ed73c7a0207b7f18889f4"
+        },
+        {
+          "path": "current_taa/drawdown_walk_forward_evidence.py",
+          "bytes": 13074,
+          "sha256": "386165fce857199cdd398d9f3dc50d9a4774da197ba9534d6652fa01af5c3372"
+        },
+        {
+          "path": "current_taa/model.py",
+          "bytes": 8934,
+          "sha256": "16fa9f789aa68f9d03e79fa92dccee956ed82486665daf24a20cac09cc838725"
+        },
+        {
+          "path": "current_taa/pipeline.py",
+          "bytes": 6793,
+          "sha256": "0ee496656634f9556703787c88efa44514cecfdd68104cf29a1c7b63f592ddbf"
+        },
+        {
+          "path": "current_taa/research_data_audit.py",
+          "bytes": 12511,
+          "sha256": "1938f91509b1c3de1fdb6cf6c848b5820640110a0d96f98a50d8df87b94604bb"
+        },
+        {
+          "path": "current_taa/research_universe.py",
+          "bytes": 10359,
+          "sha256": "5b0cfb626bfd242abe799b5ccee2a002bb8a294a76c5bc6f224960f60d269bc1"
+        },
+        {
+          "path": "current_taa/shadow.py",
+          "bytes": 5260,
+          "sha256": "768f8acd3d279f33428593298e61c1c65cb29758eba49d303d9065de6c2cab66"
+        },
+        {
+          "path": "data/models.py",
+          "bytes": 1701,
+          "sha256": "5a8382e3ff2fca659dc91feebe9f81fdbf292b3dc27f3a62a1108cdcdfaa3add"
+        },
+        {
+          "path": "data_provider/tushare_provider.py",
+          "bytes": 4928,
+          "sha256": "2894a64d97d50b4b98a1ca4c0131de8d823fbf3d33f258d606ec7aa0f2113c2c"
+        },
+        {
+          "path": "docs/ARCHITECTURE.md",
+          "bytes": 1830,
+          "sha256": "dad9f10cd16895dc8e73b53d78b2e90f27603523ade15fdee9a42cbe2faa357f"
+        },
+        {
+          "path": "docs/CORE_COMPLETION_CRITERIA.md",
+          "bytes": 2303,
+          "sha256": "a882d0c7afde22b4f2537768983232994aa874b789366cc490913e9499b9339d"
+        },
+        {
+          "path": "docs/DATA_CONTRACTS.md",
+          "bytes": 4637,
+          "sha256": "80f4c9d4f177e8ebf526d51a886e348eefc6a912ccd35522edaec1a493313796"
+        },
+        {
+          "path": "docs/DATA_SOURCES.md",
+          "bytes": 579,
+          "sha256": "579e0ed42d96e0b7981c1a2c54c1dec59b4d4e7893dc485f175c867077a910f5"
+        },
+        {
+          "path": "docs/DRAWDOWN_ADDON_CANDIDATE_BACKTEST_V1.md",
+          "bytes": 2570,
+          "sha256": "e9c64a494a58b6cd5b581d6bfd92d55a5753bf147479f5ba164b94493ae19ed8"
+        },
+        {
+          "path": "docs/DRAWDOWN_ADDON_RESEARCH_DECISION_V1.md",
+          "bytes": 3304,
+          "sha256": "25f2ddd00c1013b91920961c5bf0620ffe04ff7eda3b59eb5974b0927129b144"
+        },
+        {
+          "path": "docs/DRAWDOWN_ADDON_TRIGGER_CANDIDATE_V1.md",
+          "bytes": 2256,
+          "sha256": "fb9ded9d032d7825dcd149e0de89f426bbdec84a27c0d6a6adc08cf49c17787a"
+        },
+        {
+          "path": "docs/DRAWDOWN_EVENT_CONTRACT_V1.md",
+          "bytes": 6079,
+          "sha256": "30deb7e8947e024d9898ffc90059137b041f9238e8afdc7c435a6f18187e9179"
+        },
+        {
+          "path": "docs/DRAWDOWN_OUTCOME_CONTRACT_V1.md",
+          "bytes": 2694,
+          "sha256": "54e7f6ecce0acfd255f2bed1681e38e89374b493ec33b56f24acab9977b6a4ec"
+        },
+        {
+          "path": "docs/DRAWDOWN_PROFILE_CONTRACT_V1.md",
+          "bytes": 4294,
+          "sha256": "2219185ff17021e047db3534d4adb4f813f44f6a9467bc67f383adfc71c8f5b5"
+        },
+        {
+          "path": "docs/DRAWDOWN_THRESHOLD_COHORT_CONTRACT_V1.md",
+          "bytes": 4049,
+          "sha256": "7c89c9d712b58b2d31769ae4b900952b7b31997dc85b837d767d657140b2284f"
+        },
+        {
+          "path": "docs/DRAWDOWN_THRESHOLD_EVIDENCE_TABLE_V1.md",
+          "bytes": 2134,
+          "sha256": "505c03f856600d939b6a4d6db99b8e3bc5026baddff501377e4549035b9394f3"
+        },
+        {
+          "path": "docs/DRAWDOWN_THRESHOLD_STATISTICS_CONTRACT_V1.md",
+          "bytes": 4670,
+          "sha256": "0b97e43d1bf963910dcab38721ab8333a2b1005c8cb8abc456ab7e87aa027726"
+        },
+        {
+          "path": "docs/DRAWDOWN_WALK_FORWARD_EVIDENCE_CONTRACT_V1.md",
+          "bytes": 3992,
+          "sha256": "8aacdc42a21ba26a412666f915eca01377c4a105d0925700ed9a2f5e9f45bc9f"
+        },
+        {
+          "path": "docs/EXECUTION_MAPPING_STRATEGY.md",
+          "bytes": 4268,
+          "sha256": "30b38988f1309de97969d6497341d78aeca3d0d94d70933b8f7f2b2e7cd63698"
+        },
+        {
+          "path": "docs/EXECUTION_V2.md",
+          "bytes": 3267,
+          "sha256": "d0fef5a62878ab57d293c272de4e26a5177fa88a975d99b20c2fc7f173eb21d9"
+        },
+        {
+          "path": "docs/EXECUTION_VERSION_LIFECYCLE.md",
+          "bytes": 1762,
+          "sha256": "43d10ff33971ac285df5d9cb97af7da18d6952328a5be39d9e00515c39eda5d6"
+        },
+        {
+          "path": "docs/LIMITATIONS.md",
+          "bytes": 3833,
+          "sha256": "3135fdd12594a8154e594820de79acd69b7643af0a63e9c326452f90de551a03"
+        },
+        {
+          "path": "docs/NON_GOALS.md",
+          "bytes": 699,
+          "sha256": "13a55a0497cee501dce535826c9dc48d6ba23286b3c0085d24fe8940fa73e6c2"
+        },
+        {
+          "path": "docs/OFFLINE_BUILD.md",
+          "bytes": 1237,
+          "sha256": "f5ecf98bfe8637e8132bb7c9cb8c2d10079fa9cdca9efd6ceaca17b0acb200b7"
+        },
+        {
+          "path": "docs/OPERATIONS.md",
+          "bytes": 1172,
+          "sha256": "388025c0edc9b93b80fc56a148589f9801581edac997d3364ba2068c94fb38c8"
+        },
+        {
+          "path": "docs/PROJECT_SCOPE.md",
+          "bytes": 1697,
+          "sha256": "49997de720030aa609b11f62a1ec4028c65dbbf522a9df85acf6b4f256e79221"
+        },
+        {
+          "path": "docs/RESEARCH_UNIVERSE_CONTRACT_V1.md",
+          "bytes": 3206,
+          "sha256": "cda4a0ba798b7fee248a3cdeab8b0f0b991ee540c3ccee91973b42ea05e2f975"
+        },
+        {
+          "path": "docs/STRATEGY_REBUILD_DECISIONS_V1.md",
+          "bytes": 3244,
+          "sha256": "2c454bc9866b6d2fe3eb5a87fbfbaa2ce894fdb4ad29197f43e162cf5be2d873"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_CATEGORY_CALCULATION_PREREGISTRATION_V1.md",
+          "bytes": 10758,
+          "sha256": "ebb3f17ba869c9c101c7f327f60fa9406ee0735d176f4d0223a637e49814b7cc"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_CATEGORY_STATE_ARTIFACT_V1.md",
+          "bytes": 4163,
+          "sha256": "e9230b724534ff1795bd410be9623b908ab82def0ee721ce53be5a2cfd07185a"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_DAILY_LOGIC_ARTIFACT_V1.md",
+          "bytes": 3947,
+          "sha256": "35af9212468ab0a9028cf79e5e9ccec6f5dc52f821a9e61535037b670f12a1a0"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_DRAWDOWN_REBALANCING_MECHANISM_V1.md",
+          "bytes": 8107,
+          "sha256": "1416276e5654e473e84d6ffcb1436bbdb83a441071c8118b8c0d2e73dcb2265c"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_DRAWDOWN_REBALANCING_RESEARCH_DECISION_V1.md",
+          "bytes": 4064,
+          "sha256": "76e198f871764d486fc1cb34e49d00732aec84aebddbf4455280bab94837a555"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_ENTRY_EXIT_CONFLICT_PREREGISTRATION_V1.md",
+          "bytes": 10176,
+          "sha256": "0ec765a0eefeedc26309d01d7d04832c88fc14ac47347d211bb5e275593c53af"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_EVENT_CONSTRUCTION_PREREGISTRATION_V1.md",
+          "bytes": 9738,
+          "sha256": "fe3e91bd50291c88be5f1c30536ca88c9c64787a90766c03768669ebfbfbc17a"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_FORWARD_OUTCOME_WALK_FORWARD_PREREGISTRATION_V1.md",
+          "bytes": 20603,
+          "sha256": "9d84b4faeb3bf6f0a95a9284a151e5e2af3ebc806cc7c1c3872dee4d979bbd85"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_LOGIC_EVENT_ARTIFACT_V1.md",
+          "bytes": 3602,
+          "sha256": "0044b11b17d3a228b08f538177ed440d0858d87f2d4dcf1879c61b25e06f1adf"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_OBSERVATION_DATA_CONTRACT_V1.md",
+          "bytes": 10035,
+          "sha256": "9305cc06feb6f7a8ee20c479172542baf756d712788b1e5a45baac5cf96491a6"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_RESEARCH_DATA_CONTRACT_V1.md",
+          "bytes": 3210,
+          "sha256": "9c6b64804cadec3273ff5f1202c2491319d3095dfb9d979198135ceb111eadeb"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_SIGNAL_CATEGORY_PREREGISTRATION_V1.md",
+          "bytes": 8869,
+          "sha256": "3798add4793538d914e08d5b45f0bcafe89d2eda9ccf0688b5bf900704d2a3f6"
+        },
+        {
+          "path": "docs/STRATEGY_STYLE_WALK_FORWARD_ARTIFACT_V1.md",
+          "bytes": 4991,
+          "sha256": "728353df4a9a8028e82a2cd0684ac3aa6f424da7cb51758479b50f03b4cbf11a"
+        },
+        {
+          "path": "docs/experiments/EXECUTION_COST_B2_FROZEN.md",
+          "bytes": 1303,
+          "sha256": "988afd5862fc7472a58f284e7d975c2cd67dc8e6aea971851086001dd120d3d0"
+        },
+        {
+          "path": "docs/research_universe_design.md",
+          "bytes": 15751,
+          "sha256": "1c1188c99aaf7d0d991a1162ac14f8bf75b3e6665e7ab776b388a9feb33e0e9c"
+        },
+        {
+          "path": "requirements.txt",
+          "bytes": 54,
+          "sha256": "411e29c11de0a3b3da333b3937c158f635196cd60c19a38c8e9eadf81dfcf9b6"
+        },
+        {
+          "path": "scripts/audit_research_universe.py",
+          "bytes": 1545,
+          "sha256": "a80e9d5a6d9eb4bb88b1cee04c68b367e297456323d480a8d4add0c8d31651b4"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_events.py",
+          "bytes": 14654,
+          "sha256": "e9089b21ce661b75eea8fdf83ccd3f6555f08ec97751a42ebda3a842bb151bea"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_outcomes.py",
+          "bytes": 11705,
+          "sha256": "48ad480a855381c2841cd9828d6821b06d8bc721467c3c7b52a54cb33db1c879"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_profiles.py",
+          "bytes": 13744,
+          "sha256": "8c81b05c0fa23e89e9eaf258678877062481ab78d783287ef86190ad88b24b81"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_threshold_cohorts.py",
+          "bytes": 28119,
+          "sha256": "d08ff8ae0b61b6f50d3035b948575182bb432d279724b5d902e4ae6c54eaa95a"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_threshold_evidence_table.py",
+          "bytes": 16411,
+          "sha256": "487d260579ac93874b1935271b82d2c2661e7a7855d8d95b3ae9c45f5a84e205"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_threshold_statistics.py",
+          "bytes": 23295,
+          "sha256": "b7382f353898b58de48105e52aa326ce72232c8d89cedc13232a02a9fa269842"
+        },
+        {
+          "path": "scripts/build_a_tier_drawdown_walk_forward_evidence.py",
+          "bytes": 22590,
+          "sha256": "d67f516fe270121cad387717479bc803bcedb9a114bcec6325637b5c0471b1cb"
+        },
+        {
+          "path": "scripts/build_drawdown_addon_trigger_candidate.py",
+          "bytes": 11263,
+          "sha256": "59703776d51509734475a72b6fff6f8fa8d4aae0ec6aa609baeda0c8d202d655"
+        },
+        {
+          "path": "scripts/build_strategy_style_category_states.py",
+          "bytes": 26409,
+          "sha256": "3a35da1b3617de9da8c5816f7f7ef94b975c8e7134e8330aeb3620de445a861c"
+        },
+        {
+          "path": "scripts/build_strategy_style_daily_logic.py",
+          "bytes": 22719,
+          "sha256": "2127e64e4ad77b04153724270495849015507aca8e6ca5363ef3d15afed2d90f"
+        },
+        {
+          "path": "scripts/build_strategy_style_logic_events.py",
+          "bytes": 27357,
+          "sha256": "1e312d400eab267136779115eb6a128aae7cd25a700d73f1c0ff07a7a564e4ca"
+        },
+        {
+          "path": "scripts/build_strategy_style_research_dataset.py",
+          "bytes": 28702,
+          "sha256": "fdb47761018aa8bd2bc4de5e8f76d27020393d1e27abfabf4f3bcb76aa6e00e3"
+        },
+        {
+          "path": "scripts/build_strategy_style_walk_forward.py",
+          "bytes": 45440,
+          "sha256": "a1deddbd9b2c32e969fa42be102bb8b74290957665bc90cc1f33ce76c2fcc3d2"
+        },
+        {
+          "path": "scripts/run_drawdown_addon_candidate_backtest.py",
+          "bytes": 24609,
+          "sha256": "0d4b3a3d444e912dae64f73356b8817e0410d9af448ca0e19fbfee4d093f66d4"
+        },
+        {
+          "path": "scripts/update_current.py",
+          "bytes": 1141,
+          "sha256": "1aa96d4e2bf75c56e75255b2a6ef7b4a98022f19fd86e94acaf66334161ae055"
+        },
+        {
+          "path": "scripts/update_market_data.py",
+          "bytes": 13145,
+          "sha256": "ab8e495387057ccf7504d729e22c89b74cf76e0d467b0b215c4b994a1c3e6fe7"
+        },
+        {
+          "path": "tests/test_current_allocation.py",
+          "bytes": 2742,
+          "sha256": "bfa9a67a611024052d50bc38de8d682c0111229416a9127cdd12d51dfd2df082"
+        },
+        {
+          "path": "tests/test_current_taa_backtest.py",
+          "bytes": 2606,
+          "sha256": "207c4ee4b9c222a6cc71be2bad5359f06b26d32e5a57d4389ef0c74d7c6dbce9"
+        },
+        {
+          "path": "tests/test_current_taa_signals.py",
+          "bytes": 1922,
+          "sha256": "60a73933ed2ff780cb2a8d6c17c4818b8d900f1fd430be04173682c501416d0e"
+        },
+        {
+          "path": "tests/test_current_web_reports.py",
+          "bytes": 2231,
+          "sha256": "55869b5f4ba9ab9b97edd3f2ea3e41aef71851cde3a6c8f44ad57453df4e057f"
+        },
+        {
+          "path": "tests/test_current_web_routes.py",
+          "bytes": 1227,
+          "sha256": "8166a9e1dd3fef8eb8a381807da2b2add00b415c6db99bf89e0228e20d645fb8"
+        },
+        {
+          "path": "tests/test_data_provider.py",
+          "bytes": 954,
+          "sha256": "e493fd0cfbd4361618ac436c6e766ee4aecc9405760460faee0dd39e1f91f33a"
+        },
+        {
+          "path": "tests/test_drawdown_addon_candidate_backtest.py",
+          "bytes": 8526,
+          "sha256": "6db718c760a6f58e6183fbd7a1be1102e3cd374ec9960ffb288aa52602651726"
+        },
+        {
+          "path": "tests/test_drawdown_addon_trigger_candidate.py",
+          "bytes": 5996,
+          "sha256": "7faa0e9fc231fecd351201184530925f8855762847bc3326598d0b15a24077ec"
+        },
+        {
+          "path": "tests/test_drawdown_events.py",
+          "bytes": 14376,
+          "sha256": "a053241deb8f5b1e4c65dd0b518d5a99d9985dda6c66376cbd8381ceace56afb"
+        },
+        {
+          "path": "tests/test_drawdown_outcomes.py",
+          "bytes": 9307,
+          "sha256": "a547a55f10301e1baa1c95913af900f8f3f3abe55f459549102e5f54d2e015d3"
+        },
+        {
+          "path": "tests/test_drawdown_profiles.py",
+          "bytes": 14765,
+          "sha256": "288ded86465b9609acdc22bffce8c6728996063938bbfefa2c4234e4c2bd783e"
+        },
+        {
+          "path": "tests/test_drawdown_threshold_cohorts.py",
+          "bytes": 14328,
+          "sha256": "438ecea55957af6332917781deb82cccbb2fdced3fb390effcccad41df0f977f"
+        },
+        {
+          "path": "tests/test_drawdown_threshold_evidence_table.py",
+          "bytes": 6945,
+          "sha256": "220822f0b92ae3482caa20c25a40de498075b31bf50ef8becff0106861460f67"
+        },
+        {
+          "path": "tests/test_drawdown_threshold_statistics.py",
+          "bytes": 21648,
+          "sha256": "cff63d2a34c3053b0717e0c43b5d3a829fa3d2456097580cc216184eed1a93d9"
+        },
+        {
+          "path": "tests/test_drawdown_walk_forward_evidence.py",
+          "bytes": 15761,
+          "sha256": "2a980548fd4bca2788400ba7ece51b331844e512dc023115dfe7e6b67812cb16"
+        },
+        {
+          "path": "tests/test_portfolio_constraints.py",
+          "bytes": 1258,
+          "sha256": "fad4d2dbd5357c06f6ac0cc2e946dab5cb31a9c8b6f2617047d14135968036e5"
+        },
+        {
+          "path": "tests/test_research_data_audit.py",
+          "bytes": 7259,
+          "sha256": "014f3ac259c7c0f67a6f430b81d5859542c595e5481d13820847a2f2f7a23c90"
+        },
+        {
+          "path": "tests/test_research_universe.py",
+          "bytes": 6994,
+          "sha256": "5b41bf3f3fd1232e6bda7c639a1a9fac3e062e75502348b1ea36b32ae1c57eaf"
+        },
+        {
+          "path": "tests/test_return_type.py",
+          "bytes": 2840,
+          "sha256": "ce0377712b6295e8b95263885305404401971e9844da3c54e66564758b5a2cbc"
+        },
+        {
+          "path": "tests/test_shadow_engine.py",
+          "bytes": 2335,
+          "sha256": "14a3f2ba75293d51c5ed60e25bf4ecb0c60bafcfd966bb5e8637db7c3bcc7d9e"
+        },
+        {
+          "path": "tests/test_strategy_style_category_states.py",
+          "bytes": 15675,
+          "sha256": "98d6f5fae547c0d4ab0181e413a0c92f6e6f6879c98baead9833b30d325ad97a"
+        },
+        {
+          "path": "tests/test_strategy_style_daily_logic.py",
+          "bytes": 14555,
+          "sha256": "e182095af9e2f48db88db090540a2aed5b0164b16095a9e9d9bf6814863a7551"
+        },
+        {
+          "path": "tests/test_strategy_style_logic_events.py",
+          "bytes": 15527,
+          "sha256": "3aa46da595e76404432a94d2ac994d1488431fa5132d7bb0a99fb436f4cdd06b"
+        },
+        {
+          "path": "tests/test_strategy_style_research_dataset.py",
+          "bytes": 13705,
+          "sha256": "1cd47ca817fc72fe25cc342a742be9edd4c2bc7abfa41ce1813cbc239c0687ec"
+        },
+        {
+          "path": "tests/test_strategy_style_walk_forward.py",
+          "bytes": 21715,
+          "sha256": "02c3cf87f67c95ecfa3587dd99da894efeb9a0caf2fc9f2db1ea5bbcd16ff4d8"
+        },
+        {
+          "path": "tests/test_strategy_style_web.py",
+          "bytes": 4546,
+          "sha256": "ae422e982808babc75b1aa4c6a6b58c6d04e20e91a6e76709c710ee441b44abf"
+        },
+        {
+          "path": "tests/test_update_market_data.py",
+          "bytes": 7215,
+          "sha256": "7f417a70d8c00816dcd74274d6c878cfab803e9a4c0eccf835a919618276d132"
+        },
+        {
+          "path": "tests/test_update_pipeline.py",
+          "bytes": 2959,
+          "sha256": "21c97a46bd866f5fd211059984dc061d1715273e983c50748dcc53c808c23a54"
+        },
+        {
+          "path": "数据源.md",
+          "bytes": 289,
+          "sha256": "40db512885b04d72f2906e71be0226dff3c419676461df0e3364e859dc929b8b"
+        }
+      ],
+      "excluded": [
+        {
+          "path": "data/execution_prices/159201_SZ.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/159992_SZ.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/510300_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/510500_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/512100_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/512400_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/512760_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/515080_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/515100_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/516160_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/562500_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/588000_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/588200_SH.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/execution_prices/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/market/cn_equity_trade_calendar.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/000688CNY01_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/480092_CNI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/931688CNY010_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/931743CNY010_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00015_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00300_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00805_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00852_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00905_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H00922_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H20007_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H20590_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H20771_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/research_prices/H21152_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_category_calculations_v1/category_states.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_category_calculations_v1/common_panel.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_category_calculations_v1/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_daily_logic_v1/daily_logic.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_daily_logic_v1/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_logic_events_v1/events.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_logic_events_v1/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/prices/480092_CNI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/prices/CN2296_CNI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/prices/CN2371_CNI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/prices/H00015_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/prices/H00922_CSI.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_research/sse_trade_calendar.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_walk_forward_v1/event_outcomes.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_walk_forward_v1/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "data/strategy_style_walk_forward_v1/walk_forward_summary.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/current/allocation.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/current/data_status.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/current/manifest.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/current/research.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/current/shadow.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_addon_candidate_backtest_v1.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_addon_trigger_candidate_v1.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_events/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_outcomes/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_profiles/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_cohorts/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_evidence_table.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_threshold_statistics/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/chinext_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/cni1000_value_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/cni_free_cash_flow_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/csi1000_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/csi300_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/csi500_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/csi_dividend_total_return.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/drawdown_walk_forward_evidence/index.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/strategy_style_data_qualification_v1.json",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "reports/strategy_research/universe_audit.json",
+          "reason": "runtime-data-retained-in-original"
+        }
+      ],
+      "snapshot_at": "2026-11-10T06:17:57.868679+00:00"
+    },
+    {
+      "id": "test",
+      "directory": "MyInvestTest",
+      "origin": "https://github.com/imherro/MyInvestTest.git",
+      "source_head": "abcdc9358091fb39ec9ea08fe145a1b36971400c",
+      "source_status": "",
+      "files": [
+        {
+          "path": ".gitignore",
+          "bytes": 83,
+          "sha256": "f50556a5b208626e55ff059139d649c1ee08d8093304e2338becb5d289f95cb6"
+        },
+        {
+          "path": "README.md",
+          "bytes": 5724,
+          "sha256": "419661d98a59ed08afd16f1e41449e3d0edd7a3def5d40100e7ae770c9414db5"
+        },
+        {
+          "path": "requirements.txt",
+          "bytes": 18,
+          "sha256": "86ec0e94767a6060acc04c03312eae6bb781eabdd83555dcdbe294debce51b74"
+        },
+        {
+          "path": "scripts/analyze_asset_light_drawdown_strategy.py",
+          "bytes": 28808,
+          "sha256": "a7d9c9431e564cbfb73f045332767f6c12fa38172fe2bcbeef4d9c9cb5db503f"
+        },
+        {
+          "path": "scripts/plot_free_cash_flow_index.py",
+          "bytes": 305928,
+          "sha256": "15d69c0cdd470b48314130d7ce45850e6bd427d64dd288dba95ea1ef854d5131"
+        },
+        {
+          "path": "数据源.md",
+          "bytes": 260,
+          "sha256": "23a897690c860a678ed76fefc19be7ece359840ae7f9549d87ad5a4f6b981eb6"
+        }
+      ],
+      "excluded": [
+        {
+          "path": "output/480092_CNI_alpha.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_daily.csv",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_mainline_background.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_new_high_low.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_record_points.csv",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_strategy_portfolio.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/480092_CNI_zigzag_strategy.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/a_share_free_cash_flow_total_return.csv",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/a_share_free_cash_flow_total_return.html",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/asset_light_drawdown_events.csv",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/asset_light_drawdown_metrics.csv",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/asset_light_drawdown_strategy.md",
+          "reason": "runtime-data-retained-in-original"
+        },
+        {
+          "path": "output/index.html",
+          "reason": "runtime-data-retained-in-original"
+        }
+      ],
+      "snapshot_at": "2026-11-10T06:17:57.868679+00:00"
     }
   ]
 }

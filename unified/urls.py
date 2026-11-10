@@ -4,7 +4,7 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 from .registry import BY_ID, SYSTEMS, module_url
-ASSET_VERSION = "unified-20261104"
+ASSET_VERSION = "unified-20261110"
 
 
 def local_url(value, system_id=None):
@@ -53,6 +53,9 @@ def rewrite_body(body, content_type, system_id):
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         return body
+    if system_id in {"taa", "test"} and "html" in content_type.lower():
+        from .html_links import rewrite_html
+        return rewrite_html(text, system_id)
     if "json" in content_type.lower():
         try:
             original = json.loads(text)

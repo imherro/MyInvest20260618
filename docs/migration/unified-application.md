@@ -2,7 +2,7 @@
 
 ## Deployment contract
 
-The root `server.py` serves the homepage and 13 business modules on **8888**.
+The root `server.py` serves the homepage and 15 business modules on **8888**.
 Modules do not bind TCP ports. The parent owns isolated Python workers and sends
 requests over private multiprocessing pipes. This preserves incompatible `core`,
 `web` and `app` namespaces while presenting one application and one deployment.
@@ -12,7 +12,7 @@ a dead worker is recreated on the next request. A timed-out write is not killed 
 retried automatically. Workers exit when the parent exits.
 
 Routes: `/market/`, `/theme/`, `/leader/`, `/etf/`, `/stock/`, `/shadow/`,
-`/intraday/`, `/position/`, `/cycle/`, `/strategy/`, `/short/`, `/picking/`, `/ten/`.
+`/intraday/`, `/position/`, `/cycle/`, `/strategy/`, `/short/`, `/picking/`, `/ten/`, `/taa/`, `/test/`.
 API directories: `/api/<module>`. Native API routes retain their suffix, e.g.
 `/api/market/index`. The original `/module/api/...` shape is also accepted.
 Not every original module has an `/api/index`; the directory documents the actual
@@ -22,16 +22,26 @@ data freshness. `/healthz` remains a cheap parent-process liveness check.
 
 Only `invest.okbbc.com -> localhost:8888` is required in Cloudflare. Existing
 subdomain routes are not deleted. Old standalone ports remain recorded solely for
-explicit rollback, not normal startup. Test/TAA are outside these 13 modules and
-retain their existing external links and standalone deployment.
+explicit rollback, not normal startup. Test/TAA joined the unified deployment on
+2026-11-10; their old domains and standalone ports are no longer navigation targets.
+
+Test serves the existing `output/` artifacts without regenerating them. TAA keeps
+its native read-only pages and strategy calculations unchanged. Both now have
+`/api/<id>` catalogs and `/api/<id>/index` endpoints with recorded data basis dates.
+The TAA API is registered by the unified worker only, leaving its standalone route
+contract unchanged. HTML URLs in these two modules are adapted with an HTML parser,
+not global replacements; embedded chart scripts remain intact. A local stylesheet
+allows Test's long date range to wrap on phones without modifying archived HTML.
 
 ## Original data and credentials
 
-`subsystems.json` explicitly lists 21 runtime directory bindings. `prepare_runtime.ps1`
+`subsystems.json` explicitly lists 32 runtime directory bindings. `prepare_runtime.ps1`
 creates Windows junctions to the original sibling directories, after checking every
 target and refusing to replace any existing content. Picking's Python `data` package
 stays in this repository; only its cache/frozen directories are bound. Market's
 generated `web/data` charts are read from their original location too.
+TAA's `data/models.py` also stays source; only named data subdirectories and reports
+are bound. Test's entire generated `output/` remains in its original directory.
 
 No databases, reports or credentials are moved into Git. Each worker independently
 loads its original `.env`; values are not copied into source or logged. Original
@@ -49,9 +59,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ensure_web_services.
 python scripts/subsystems.py check
 ```
 
-The normal monitor starts one parent, probes the 13 module routes and checks worker
-readiness. It does not relaunch the old 13 ports. Default monitoring also retains
-Test/TAA checks; `-Only home` limits work to this integrated application.
+The normal monitor starts one parent, probes every registered module and checks
+worker readiness. It does not relaunch standalone ports, including 8024 and 8025.
+Counts and concurrency capacity follow the registry rather than a fixed module count.
 The existing 00:00/18:00 automation can keep invoking the same monitor path.
 Explicit restart requires `-Restart -Only home`; unknown port owners are refused.
 `-NoStart -Restart` is rejected before doing anything. Logs are under ignored
@@ -66,6 +76,8 @@ python scripts/check_unified.py --data-root C:/Users/kunpeng/Documents
 python scripts/check_unified_browser.py --base-url http://127.0.0.1:18988
 python scripts/check_unified_browser.py --base-url http://127.0.0.1:18988 --mobile
 python scripts/audit_subsystems.py
+python scripts/smoke_subsystems.py --data-root C:/Users/kunpeng/Documents
+python scripts/check_added_channels.py --originals C:/Users/kunpeng/Documents --output temp/unified-tests/added-details-production.json
 ```
 
 The integration check starts a disposable source copy on a temporary port, strips

@@ -12,6 +12,9 @@ runtime/
 !/apps/MyInvestPicking/data/
 /apps/MyInvestPicking/data/*
 !/apps/MyInvestPicking/data/*.py
+!/apps/MyInvestTAA/data/
+/apps/MyInvestTAA/data/*
+!/apps/MyInvestTAA/data/*.py
 /apps/*/research/
 /apps/*/reports/
 /apps/*/logs/

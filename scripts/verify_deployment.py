@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--origin", default="http://127.0.0.1:8888")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=30)
+    parser.add_argument("--system", choices=[s["id"] for s in SYSTEMS], action="append")
     parser.add_argument("--curl", action="store_true", help="Use native curl with compression and no Windows registry proxy")
     parser.add_argument("--resolve", help="Diagnostic curl-only HOST:PORT:IP override; does not change system DNS")
     args = parser.parse_args()
@@ -27,7 +28,8 @@ def main():
     opener = build_opener(ProxyHandler({})) if args.origin.startswith("http://127.0.0.1:") else build_opener()
     results = []
     paths = [("home", "/"), ("home", "/api"), ("home", "/api/health")]
-    paths += [(system["id"], module_url(system["id"], path)) for system in SYSTEMS for path in ("/", "/api")]
+    paths += [(system["id"], module_url(system["id"], path)) for system in SYSTEMS
+              if not args.system or system["id"] in args.system for path in ("/", "/api")]
     for name, path in paths:
         started = time.monotonic()
         row = {"module": name, "path": path}

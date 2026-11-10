@@ -2,8 +2,9 @@
 
 ## 统一源码仓库
 
-13 个子系统源码已汇集到 `apps/`，清单见 `subsystems.json`。
-已升级为统一应用：一个 `8888` 入口，13 个模块通过 `/market/`、`/theme/` 等子路径访问，不再各自监听端口。
+15 个子系统源码已汇集到 `apps/`，清单见 `subsystems.json`。
+已升级为统一应用：一个 `8888` 入口，15 个模块通过 `/market/`、`/theme/` 等子路径访问，不再各自监听端口。
+测试和逆向也已加入：`/test/`、`/taa/`；对应只读 API 目录为 `/api/test`、`/api/taa`，两者均提供 `/index` 数据摘要。
 原数据和 `.env` 留在原目录，模块通过明确的数据绑定继续使用；旧仓库保留用于历史和回退。
 启动、测试、巡检和回退见 [统一应用说明](docs/migration/unified-application.md)。
 迁移范围、来源提交、运行与测试方式见 [迁移说明](docs/migration/README.md)。
@@ -76,7 +77,7 @@ for test counts, evidence and the distinction between application and network he
 
 ## Web 服务巡检
 
-巡检默认管理统一主服务及其 13 个 IPC 模块，不再拉起旧的 13 个端口；逆向、测试仍按原来的独立服务配置检查。仅操作本次整合范围可加 `-Only home`。
+巡检默认管理统一主服务及注册表中的全部 15 个 IPC 模块，不再拉起旧端口。逆向、测试也由统一服务管理；可用 `-Only home` 明确指定统一主服务。
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\ensure_web_services.ps1

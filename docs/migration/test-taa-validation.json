@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-10",
+  "scope": "Add Test and TAA to the existing single-port application",
+  "modules_total": 15,
+  "source_import": {
+    "mode": "tracked source only; original repositories untouched",
+    "taa_files": 121,
+    "test_files": 6,
+    "runtime_files_excluded": 117,
+    "source_manifest": "source-snapshot.json",
+    "new_runtime_bindings": 11,
+    "total_runtime_bindings": 32,
+    "credentials_copied": false,
+    "original_source_changes": [],
+    "credential_scan_matches": []
+  },
+  "tests": {
+    "root_unittest_passed": 48,
+    "taa_suite_passed": 407,
+    "test_web_suite_passed": 4,
+    "suite_evidence": "temp/monorepo-tests/run-61i8hke8/summary.json",
+    "all_module_standalone_smoke_passed": 15,
+    "smoke_evidence": "temp/monorepo-smoke/run-bax7_5eh/summary.json",
+    "all_module_unified_checks_passed": 51,
+    "concurrent_catalog_requests": 30,
+    "worker_crash_recovery": "passed",
+    "worker_tcp_listeners": 0,
+    "integration_evidence": "temp/unified-tests/run-oghxu30y/summary.json",
+    "desktop_pages_passed": 7,
+    "desktop_evidence": "temp/unified-browser/20261110_142251/summary.json",
+    "mobile_pages_passed": 7,
+    "mobile_evidence": "temp/unified-browser/20261110_142359/summary.json",
+    "browser_errors_overflow_and_old_domain_requests": 0,
+    "data_preservation_checks_passed": 32,
+    "preservation_evidence": "temp/unified-tests/added-details-production.json",
+    "full_original_13_business_suites": "Not rerun in this change; all 15 entrypoints and integrated endpoints were checked",
+    "github_ci": "Not configured"
+  },
+  "deployment": {
+    "listener": "127.0.0.1:8888",
+    "ready_modules": 15,
+    "standalone_8024_8025_listeners": 0,
+    "production_checks_passed": 33,
+    "local_evidence": "temp/unified-tests/production-15-local.json",
+    "monitor_evidence": "temp/web_service_monitor/20261110_142941/summary.json",
+    "public_edge_checks_passed": 7,
+    "public_edge_evidence": "temp/unified-tests/added-public-resolved.json",
+    "diagnostic_dns_override": "invest.okbbc.com:443:104.21.47.190",
+    "normal_public_network": "Intermittent timeouts remain on the default fake-IP/proxy path; no global DNS/proxy setting was changed",
+    "default_network_evidence": "temp/unified-tests/added-public.json",
+    "local_browser": "Verified TAA then same-window navigation to Test in Codex browser",
+    "isolated_preview": "Stopped after acceptance"
+  },
+  "data_boundary": {
+    "taa_basis_date": "2026-07-14",
+    "test_basis_date": "2026-09-02",
+    "reports_regenerated": false,
+    "strategy_logic_changed": false,
+    "original_daily_writer_tasks_changed": false,
+    "generated_html_changed_on_disk": false,
+    "production_mutation_tests": false
+  }
+}

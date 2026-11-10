@@ -130,8 +130,8 @@ class ApplicationRuntime:
         self.log_root.mkdir(parents=True, exist_ok=True)
         base = Path(source_root) if source_root else ROOT / "apps"
         self.workers = {s["id"]: ModuleWorker(s, base / s["directory"], origin, self.log_root, isolated) for s in SYSTEMS}
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=26, thread_name_prefix="module-ipc")
-        self.capacity = threading.BoundedSemaphore(39)
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2 * len(SYSTEMS), thread_name_prefix="module-ipc")
+        self.capacity = threading.BoundedSemaphore(3 * len(SYSTEMS))
         self.closed = False
 
     def request(self, system_id, request, timeout=55):

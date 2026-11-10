@@ -47,19 +47,17 @@ function New-Service {
 }
 
 $Services = @(
-    (New-Service "home" $RepoRoot 8888 "/healthz" @('-u', (Join-Path $RepoRoot 'server.py'), "--host", $BindHost, "--port", "8888")),
-    (New-Service "test" (ProjectPath "MyInvestTest") 8024 "/index.html" @("-m", "http.server", "8024", "--bind", $BindHost, "--directory", "output")),
-    (New-Service "taa" (ProjectPath "MyInvestTAA") 8025 "/" @("-m", "uvicorn", "backend.main:app", "--host", $BindHost, "--port", "8025"))
+    (New-Service "home" $RepoRoot 8888 "/healthz" @('-u', (Join-Path $RepoRoot 'server.py'), "--host", $BindHost, "--port", "8888"))
 )
 
-# Default deployment has one listener for the hub and all 13 modules.
-# Test/TAA retain their existing paths and ports, outside the migration scope.
+# Default deployment has one listener for the hub and every registered module.
 $Registry = Get-Content (Join-Path $RepoRoot 'subsystems.json') -Raw | ConvertFrom-Json
 $Services = @($Services | Where-Object { $_.Id -notin $Registry.systems.id })
 if ($LegacyServices) { foreach ($system in $Registry.systems) {
     $project = if ($Layout -eq 'legacy') { ProjectPath $system.directory } else { Join-Path (Join-Path $RepoRoot 'apps') $system.directory }
     $launcher = Join-Path $RepoRoot 'scripts\production_service.py'
-    $Services += New-Service $system.id $project $system.port $system.health @('-u', $launcher, '--system', $system.id, '--layout', $Layout, '--host', $BindHost)
+    $healthPath = if ($system.standalone_health) { $system.standalone_health } else { $system.health }
+    $Services += New-Service $system.id $project $system.port $healthPath @('-u', $launcher, '--system', $system.id, '--layout', $Layout, '--host', $BindHost)
 } }
 if ($Only) {
     foreach ($id in $Only) { if ($id -notin $Services.Id) { throw "Unknown service: $id" } }
@@ -345,7 +343,7 @@ if (-not $LegacyServices -and 'home' -in $Services.Id -and @($results | Where-Ob
             $state = $health.modules.($system.id)
             $moduleResults += [pscustomobject]@{ id=$system.id; ready=([bool]$state.ready -and [bool]$state.alive); pid=$state.pid; transport=$state.transport }
         }
-        if (-not $health.ok -or $moduleResults.Count -ne 13 -or $moduleProbeFailures.Count) { throw "Unified module health is incomplete. Failed probes: $($moduleProbeFailures -join ', ')" }
+        if (-not $health.ok -or $moduleResults.Count -ne $Registry.systems.Count -or $moduleProbeFailures.Count) { throw "Unified module health is incomplete. Failed probes: $($moduleProbeFailures -join ', ')" }
     } catch {
         $results += [pscustomobject]@{ id='unified-modules'; port=8888; status='failed_to_start'; error=$_.Exception.Message }
     }

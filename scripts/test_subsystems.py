@@ -50,7 +50,7 @@ def main() -> int:
             project = next(p for p in snapshot["projects"] if p["id"] == key)
             for entry in project["excluded"]:
                 relative = Path(entry["path"])
-                if entry["reason"] != "runtime-data-retained-in-original" or relative.parts[0] not in {"data", "research", "reports"}:
+                if entry["reason"] != "runtime-data-retained-in-original" or relative.parts[0] not in {"data", "research", "reports", "output"}:
                     continue
                 source = original / relative
                 if source.is_file() and not source.is_symlink() and source.resolve().is_relative_to(original):

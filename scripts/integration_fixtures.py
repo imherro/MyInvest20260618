@@ -14,9 +14,9 @@ def copy_fixtures(system, original, destination):
     records = []
     for entry in project["excluded"]:
         relative = Path(entry["path"])
-        if entry["reason"] != "runtime-data-retained-in-original" or relative.parts[0] not in {"data", "research", "reports"}:
+        if entry["reason"] != "runtime-data-retained-in-original" or relative.parts[0] not in {"data", "research", "reports", "output"}:
             continue
-        if "private" in relative.parts or relative.suffix not in {".json", ".jsonl", ".csv", ".md"}:
+        if "private" in relative.parts or relative.suffix not in {".json", ".jsonl", ".csv", ".md", ".html"}:
             continue
         source = original / relative
         if not source.is_file() or source.is_symlink() or not source.resolve().is_relative_to(original.resolve()):

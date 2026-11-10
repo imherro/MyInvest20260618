@@ -3,6 +3,8 @@
 > This document records the completed source-only phase. The subsequent deployment
 > and runtime architecture supersede its original deployment boundary; see
 > [Unified MyInvest Application](unified-application.md).
+> Test/TAA joined on 2026-11-10; see [extension acceptance](test-taa-validation.json).
+> The exclusions and process statements below describe the original source-only phase.
 
 ## Scope and deployment boundary
 

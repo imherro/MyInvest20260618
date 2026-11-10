@@ -87,7 +87,7 @@ class UnifiedTests(unittest.TestCase):
         <link href="/static/a.css"><a href="https://stock.okbbc.com/">stock</a>'''
         result = rewrite_body(source, "text/html", "theme").decode()
         self.assertIn('href="/theme/"', result)
-        self.assertIn('src="/header.js?mi=unified-20261104"', result)
+        self.assertIn('src="/header.js?mi=unified-20261110"', result)
         self.assertIn('`/api/theme/index?q=${code}`', result)
         self.assertIn("x.split('/')", result)
         self.assertIn('href="/theme/static/a.css"', result)
@@ -176,6 +176,17 @@ class GatewayTests(unittest.TestCase):
     def test_head_has_no_body(self):
         with urlopen(Request(self.origin + "/api/theme", method="HEAD")) as response:
             self.assertEqual(response.read(), b"")
+
+    def test_health_requires_every_registered_module(self):
+        states = {s["id"]: {"alive": True, "ready": True} for s in SYSTEMS}
+        self.server.runtime.status = lambda: states
+        with urlopen(self.origin + "/api/health") as response:
+            self.assertTrue(json.load(response)["ok"])
+        states.pop("taa")
+        with self.assertRaises(HTTPError) as caught:
+            urlopen(self.origin + "/api/health")
+        self.assertEqual(caught.exception.code, 503)
+        caught.exception.close()
 
     def test_chunked_post_is_decoded_before_module_dispatch(self):
         connection = http.client.HTTPConnection("127.0.0.1", self.server.server_port)
